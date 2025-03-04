@@ -5,9 +5,12 @@
 - **inode** 是文件系统中的一个数据结构，存储文件的元信息（如权限、大小、时间戳、数据块位置等），但不包含文件名。  
 - **查看 inode**:  
   ```bash
+  df -i               #查看 inode 使用情况
   ls -i filename      # 查看文件的 inode 号
   stat filename       # 显示 inode 的详细信息
   ```
+即使文件名改变，inode 仍然不变，只需修改目录项，而数据不会受到影响。
+
 
 **Q2: `chmod 755` 和 `chmod u=rwx,g=rx,o=rx` 的区别？**  
 - 两者等价，均表示：  
@@ -33,9 +36,13 @@ p：命名管道（FIFO，也称为“有名管道”）
   ```bash
   ln -s /path/to/source /path/to/link
   ```
+- **创建硬链接**: ，就是使用 ln 命令，不加 -s 参数。例如：
+  ```bash
+  ln source_file hard_link_name
+  ```
 ln -s 命令用于创建符号链接（软链接）
-
----
+硬链接为文件创建了一个新的目录项，这个新目录项和原文件共享同一个 inode，即文件在磁盘上的实际数据。
+如果原文件被删除，只要硬链接存在，文件数据仍然可以访问。
 
 #### **2. 进程管理**
 **Q1: 如何查看进程的父子关系？**  
@@ -43,14 +50,25 @@ ln -s 命令用于创建符号链接（软链接）
 pstree -p          # 显示进程树结构
 ps -ef --forest    # 显示进程层级
 ```
+- 进程的父子关系指的是当一个进程（父进程）创建另一个进程（子进程）时形成的一种层次关系。
+- 父进程通常通过系统调用（如 Unix/Linux 下的 fork()）创建子进程。每个进程都有一个唯一的进程标识符（PID）。子进程会记录父进程的标识符（PPID），从而表明它的父进程是谁。
+- 父进程通常负责监控或等待子进程的执行结束，使用诸如 wait() 或 waitpid() 等系统调用来回收子进程退出后的资源。如果父进程没有妥善处理，子进程结束后可能会成为僵尸进程（Zombie Process）。
+- 这种父子关系可以形成一棵进程树，初始进程（如 Unix 下的 init 或 systemd）位于树的根部，而所有其他进程都是它的后代。
 
 **Q2: `kill -9` 和 `kill -15` 的区别？强制终止进程的后果？**  
 - `kill -15`（默认）: 发送 SIGTERM，允许进程清理资源后退出。  
 - `kill -9`: 发送 SIGKILL，强制终止进程，可能导致资源未释放（如临时文件、锁）。  
+```bash
+kill -9 <PID>   # 立即强制终止进程
+kill -15 <PID>  # 尝试优雅地终止进程（默认）
+killall -9 nginx   # 杀死所有名为 nginx 的进程,多个进程
+```
+killall / pkill：按进程名终止多个进程。
 
 **Q3: 如何让进程在后台运行并脱离终端？**  
 ```bash
 nohup command &            # 忽略 SIGHUP 信号
+nohup python my_script.py & #适用于让进程在后台运行并避免终端关闭后进程被杀死。
 disown                      # 将当前作业移出终端会话
 ```
 
@@ -59,23 +77,37 @@ disown                      # 将当前作业移出终端会话
 #### **3. 存储管理**
 **Q1: 如何查看磁盘 I/O 使用情况？**  
 ```bash
-iostat -x 1          # 查看磁盘 I/O 详细统计（包括 %util、await）
+iostat -x 1          # 查看磁盘 I/O 详细统计（包括 %util 磁盘 I/O 利用率，接近 100% 说明磁盘负载高。 、await I/O 请求的平均等待时间，越高表示磁盘繁忙。）
 iotop                # 实时监控进程的 I/O 使用
 ```
-
+- 类型	特点	适用场景
+- 同步 I/O	进程等待 I/O 完成	传统文件读写
+- 异步 I/O	进程不阻塞，I/O 完成后通知	高性能数据库、Web 服务器
+- 磁盘 I/O 直接影响数据库查询性能，*SSD* 比传统 HDD 在 IOPS（每秒输入输出操作）上更快。
+- 服务器上的 高磁盘 I/O 可能意味着数据库查询过多、日志写入频繁或 Swap 使用率过高。
+- 交换空间（Swap）：当 RAM 不足时，系统会将数据移动到 Swap 分区（磁盘上的交换空间），但 Swap 访问速度比 RAM 慢，会影响性能。当系统运行的进程占满 RAM 时，Linux 会将长期不活跃的内存数据移动到 Swap，腾出 RAM 供活跃进程使用。可以增加物理内存（最佳方案），优化 Swap 使用策略（调整 swappiness），使用 SSD 作为 Swap（提升读写速度，但影响寿命）
+- 如果没有 Swap，RAM 被占满时，系统可能会直接杀死进程（OOM Killer 机制）。
+- 启用 Swap 可以让系统在内存不足时有缓冲空间，避免突然终止关键进程。swamping值越低越依赖 RAM
+  
 **Q2: 如何快速定位占用磁盘空间最大的文件或目录？**  
 ```bash
 du -sh /*               # 查看根目录下各目录大小
 du -ah /path | sort -rh | head -n 10  # 显示前 10 大文件
 ```
+df -h	显示整个磁盘的使用情况	检查磁盘是否满了； du -sh /path	显示目录/文件的大小	找出哪些文件/目录占用空间
+
 
 **Q3: LVM 的工作原理？如何扩展逻辑卷？**  
-- **LVM**：逻辑卷管理，通过 PV（物理卷）、VG（卷组）、LV（逻辑卷）实现动态扩容。  
+- **LVM**：逻辑卷管理，通过 PV（物理卷）物理存储设备，如硬盘 /dev/sdb、VG（卷组）由多个 PV 组成的存储池 、LV（逻辑卷）实现动态扩容。  
 - **扩展逻辑卷步骤**:  
   ```bash
   lvextend -L +10G /dev/vgname/lvname  # 扩展 LV
   resize2fs /dev/vgname/lvname         # 调整 ext4 文件系统（xfs 用 xfs_growfs）
+  xfs_growfs /dev/my_vg/my_lv          #如果是xfs系统
+  pvcreate /dev/sdc
+  vgreduce my_vg /dev/sdb              # 从卷组中移除旧磁盘
   ```
+  LVM（逻ical Volume Manager，逻辑卷管理器）是 Linux 中的一种 磁盘管理方式，LVM 可以在多个磁盘上创建一个 VG，从而突破单个磁盘的容量限制。
 
 ---
 
@@ -86,6 +118,8 @@ du -ah /path | sort -rh | head -n 10  # 显示前 10 大文件
   ```bash
   systemctl start/stop/status servicename
   ```
+Systemd：更标准化，所有服务用 systemctl 统一管理。
+SysVinit：依赖手动编写 init.d 脚本，管理方式不统一。
 
 **Q2: 如何查看服务的启动日志？**  
 ```bash
