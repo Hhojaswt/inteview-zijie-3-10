@@ -218,6 +218,7 @@ tcpdump -i eth0 port 80 -w capture.pcap
 ```bash
 iptables -A INPUT -s 192.168.1.100 -j DROP
 ```
+- 指定源 IP（-s = --source），即来自 192.168.1.100 的流量，-j DROP	拒绝（丢弃）该 IP 发送的所有数据包，不返回任何响应
 
 **Q2: 排查 SSH 连接缓慢**  
 检查服务端配置 `/etc/ssh/sshd_config`:  
@@ -225,7 +226,46 @@ iptables -A INPUT -s 192.168.1.100 -j DROP
 UseDNS no          # 禁用 DNS 反向解析
 GSSAPIAuthentication no  # 禁用 GSSAPI 认证
 ```
-
+SSH（Secure Shell，安全外壳协议）是一种用于 远程管理服务器和设备 的加密网络协议，主要作用是提供安全的远程登录、命令执行和数据传输。
+SSH 提供 SCP 和 SFTP，用于在本地和远程服务器之间加密传输文件。
+- 本地端口转发
+```bash
+ssh -L 8080:localhost:3306 user@192.168.1.100
+```
+- 远程端口转发
+```bash
+ssh -R 9000:localhost:80 user@192.168.1.100
+```
+- scp（Secure Copy）用法
+从本地复制文件到远程服务器
+```bash
+scp myfile.txt user@192.168.1.100:/home/user/
+```
+指定端口（非默认 22 端口）
+```bash
+scp -P 2222 myfile.txt user@192.168.1.100:/home/user/
+```
+从远程服务器下载文件到本地
+```bash
+scp user@192.168.1.100:/home/user/myfile.txt .
+```
+连接远程服务器
+```bash
+sftp user@192.168.1.100
+```
+下载文件
+```bash
+sftp> get myfile.txt
+```
+上传文件
+```bash
+sftp> put myfile.txt
+```
+断点续传
+```bash
+sftp> reget largefile.iso
+```
+断点续传，scp 不支持，但 sftp 可以 reget
 ---
 
 ### **四、脚本开发与自动化**
