@@ -113,18 +113,19 @@ df -h	显示整个磁盘的使用情况	检查磁盘是否满了； du -sh /path
 
 #### **4. 服务管理**
 **Q1: Systemd 和 SysVinit 的区别？**  
-- **Systemd**：并行启动服务、依赖管理、日志统一（journalctl）。  
+- **Systemd**：并行启动服务、依赖管理、日志统一（journalctl）。 systemctl 是 Systemd 的核心工具，用于管理 Linux 服务器上的服务（如启动、停止、重启、查看状态等）。 
 - **常用命令**:  
   ```bash
   systemctl start/stop/status servicename
   ```
-Systemd：更标准化，所有服务用 systemctl 统一管理。
-SysVinit：依赖手动编写 init.d 脚本，管理方式不统一。
+Systemd：更标准化，所有服务用 systemctl 统一管理。journald，二进制日志，使用 target（如 multi-user.target），BIOS → Bootloader（GRUB） → 加载内核 → `systemd`（PID=1） → 目标（target） → 登录
+SysVinit：依赖手动编写 init.d 脚本，管理方式不统一。传统 syslog，文本日志，运行级别（runlevel），BIOS → Bootloader（GRUB） → 加载内核（kernel） → `init`（PID=1） → 运行 `/etc/rc.d/` 脚本 → 登录
 
 **Q2: 如何查看服务的启动日志？**  
 ```bash
 journalctl -u servicename       # 查看特定服务的日志
 ```
+nginx 是一个高性能 Web 服务器，适用于反向代理、负载均衡等。
 
 ---
 
@@ -147,7 +148,10 @@ journalctl -u servicename       # 查看特定服务的日志
   ```bash
   sync && echo 3 > /proc/sys/vm/drop_caches  # 释放 pagecache、dentries、inodes
   ```
-
+- sync作用：强制将所有 脏数据（dirty data） 从内存同步（flush）到磁盘。 原因：避免数据丢失，确保数据已经写入磁盘，而不是仅停留在缓存中。
+- 为什么要先 sync？
+Linux 使用 写缓存（write buffer），数据可能还在内存中，尚未真正写入磁盘。如果 drop_caches 直接清理缓存，数据可能会丢失。sync 先确保数据写入磁盘，再清理缓存，防止数据丢失。
+- echo 3 设置该参数为 3，表示清理所有缓存, echo 1：只清理 PageCache（通常最安全）。echo 2：只清理 inode 和目录缓存。
 ---
 
 #### **2. 工具使用**
@@ -155,6 +159,16 @@ journalctl -u servicename       # 查看特定服务的日志
 ```bash
 vmstat 1          # 每 1 秒输出一次（关注 si/so 交换、us/sy CPU 使用）
 ```
+- si	Swap In（从 Swap 交换到内存，单位 KB/s）。如果 si > 0，表示系统正在从 Swap 取回数据，可能是内存不足。
+- so	Swap Out（从内存交换到 Swap，单位 KB/s）。如果 so > 0，表示系统在把数据写入 Swap，可能需要增加 RAM。
+- bi	Block In（从磁盘读取的数据量，单位 KB/s）。
+- bo	Block Out（写入磁盘的数据量，单位 KB/s）。
+- us	用户态 CPU 使用率（User Time）。表示用户进程（应用程序） 占用 CPU 的比例。
+- sy	内核态 CPU 使用率（System Time）。表示内核进程和系统调用 占用 CPU 的比例。
+- id	空闲 CPU 时间（Idle Time）。如果 id 很低（接近 0%），说明 CPU 被大量占用。
+- wa	等待 I/O（IO Wait）。如果 wa 很高，表示磁盘 I/O 可能是性能瓶颈。
+- st	Steal Time（仅在虚拟化环境中出现）。表示 VM 被 Hypervisor 抢占 CPU 资源的时间（通常出现在 VPS/云服务器上）。
+- us + sy ≈ 100%：CPU 过载，可能需要优化应用。wa 高（如 wa > 20%）：可能是磁盘 I/O 瓶颈，需要优化磁盘读写。id 低（如 id < 5%）：CPU 可能是瓶颈，需优化程序或增加 CPU 核心数。
 
 **Q2: 如何用 `strace` 追踪进程的系统调用？**  
 ```bash
@@ -170,6 +184,8 @@ strace -p PID -e trace=open,read,write  # 追踪指定进程的特定系统调�
 net.core.somaxconn = 65535     # 提高 TCP 连接队列长度
 vm.swappiness = 10             # 减少交换分区使用
 ```
+net.core.somaxconn	最大 TCP 连接排队数（提高高并发能力）	128
+
 
 **Q2: 调整文件系统挂载参数**  
 在 `/etc/fstab` 中添加 `noatime,nobarrier`（减少磁盘写入）。  
