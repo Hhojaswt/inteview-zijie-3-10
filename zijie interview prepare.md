@@ -199,11 +199,17 @@ net.core.somaxconn	最大 TCP 连接排队数（提高高并发能力）	128
 ```bash
 ss -antp         # 显示所有 TCP 连接及进程信息
 ```
+-a	显示所有连接，包括监听（LISTEN） 和 已建立（ESTABLISHED）
+-n	以 数值格式 显示 IP 地址和端口（避免解析为域名，加快查询速度）
+-t	仅显示 TCP 连接（默认 ss 也可以显示 UDP，但这里只看 TCP）
+-p	显示进程（PID），查看是哪个进程在使用端口
 
 **Q2: 用 `tcpdump` 抓取特定端口的流量**  
 ```bash
 tcpdump -i eth0 port 80 -w capture.pcap
 ```
+-i eth0	指定网络接口（这里是 eth0，可换成 ens33、wlan0 等）
+-w capture.pcap	将抓到的数据包保存到 capture.pcap 文件，用于后续分析
 
 ---
 
