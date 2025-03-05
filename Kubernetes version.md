@@ -29,14 +29,17 @@
      ```
   - 如果安装了 Python、Node.js、Java 等，镜像体积会变大。例如 python:3.9（≈100MB） vs. python:3.9-alpine（≈23MB）。
   - 镜像越小，下载速度越快，运行时占用的资源更少
-  2. **选择轻量级基础镜像**：如 Alpine（5MB）替代 Ubuntu（70MB）。  
+    
+  2. **选择轻量级基础镜像**：如 Alpine（5MB）替代 Ubuntu（70MB）
+    
   3. **合并指令减少层数**：  
      ```dockerfile
      RUN apt-get update && apt-get install -y \
          package1 \
          package2 \
          && rm -rf /var/lib/apt/lists/*
-     ```  
+     ```
+     Docker 镜像使用分层存储（Layered Filesystem），每个层是只读的文件系统，多个层叠加形成最终的镜像。多个镜像可以共享相同的层，节省磁盘空间。Docker 可以复用已有的层，每个层都会增加镜像体积
 
 **3. Docker 的网络模式有哪些？**  
 - **bridge**：默认模式，容器通过虚拟网桥通信。  
