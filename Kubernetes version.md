@@ -39,31 +39,93 @@
          package2 \
          && rm -rf /var/lib/apt/lists/*
      ```
+     apt update 生成了 apt 缓存文件，apt install -y curl 依赖 apt update 的缓存，rm -rf /var/lib/apt/lists/* 只是删除了当前层的文件，但前面的层仍然保留这些缓存
      Docker 镜像使用分层存储（Layered Filesystem），每个层是只读的文件系统，多个层叠加形成最终的镜像。多个镜像可以共享相同的层，节省磁盘空间。Docker 可以复用已有的层，每个层都会增加镜像体积
 
 **3. Docker 的网络模式有哪些？**  
-- **bridge**：默认模式，容器通过虚拟网桥通信。  
-- **host**：共享宿主机网络命名空间，无隔离。  
-- **overlay**：跨主机容器通信（用于 Swarm/Kubernetes）。  
-- **none**：无网络接口，需手动配置。  
-
+- **bridge**： 默认模式，容器之间可以通信，但不能直接访问主机网络。但可以通过 docker network connect 连接到同一个网络。宿主机可以通过 http://localhost:8080 访问 Nginx。
+  ```dockerfile
+  docker run -d --name web -p 8080:80 nginx
+  ```
+- **host**：让容器使用宿主机的网络，性能高，但端口冲突风险高。
+  ```dockerfile
+  docker run -d --network host nginx
+  ```
+- **overlay**：用于 Kubernetes 或 Swarm，支持跨主机通信
+  ```dockerfile
+  docker network create -d overlay my_overlay
+  docker service create --network my_overlay nginx
+  ```
+- **none**：容器没有任何网络，只能手动配置
+  ```dockerfile
+  docker run -d --network none nginx
+  ```
+- **Container**：让多个容器共享一个网络（如 Pod 内的容器）
+  ```dockerfile
+  docker run -d --name app1 nginx
+  docker run -d --name app2 --network container:app1 busybox top
+  ```  
+- -d 让容器在后台运行，而不会占据当前终端。
+  
 **4. 如何实现 Docker 数据持久化？**  
 - **Volume**：  
   ```bash
+  docker volume create mydata
   docker run -v /host/path:/container/path nginx
-  ```  
-- **Bind Mount**：直接挂载宿主机目录。  
+  docker volume inspect mydata  #查看真实路径
+  docker volume rm mydata   #删除
+  ```
+  Volume（数据卷） 是 Docker 提供的一种 持久化存储 机制。默认情况下，Docker 容器的数据存储在容器内部，如果容器被删除，数据就会丢失。Volume 允许数据在容器重启或删除后仍然保留。
+  - /host/path：宿主机上的目录（本机路径）。
+  - /container/path：容器内的目录（挂载路径）。
+  - -v 代表 挂载（mount）一个数据卷（volume），用于在宿主机（host）和容器（container）之间共享数据。
+  
+- **Bind Mount**：直接挂载宿主机目录。
+  ```bash
+  docker run -d -v /data:/app nginx
+  ```
+  -  -d表示容器会在后台运行，但不会在终端显示任何输出。
+  
 - **tmpfs**：内存临时存储。  
+- tmpfs（Temporary Filesystem，临时文件系统）是一种 基于内存的文件系统，它存储数据在 RAM（内存） 中，而不是磁盘上,比 SSD 还快,减少磁盘 IO，适用于高频读写但无需持久化的数据
+  ```bash
+  docker run -d --tmpfs /app/tmp:rw,size=100m,uid=1000 nginx
+  ```
+  - uid=1000：指定用户 ID，限制访问权限。
+  - size=100m：最大 100MB，防止占满内存。
+  - --tmpfs /app/tmp：在 /app/tmp 目录创建 tmpfs（数据存放在内存中）。 
 
 **5. Docker Compose vs Docker Swarm**  
-- **Compose**：单机多容器编排（通过 YAML 定义服务）。  
-- **Swarm**：原生集群管理工具（已逐渐被 Kubernetes 取代）。  
+- **Compose**：单机多容器编排（通过 YAML 定义服务）。 Docker Compose 是一个 多容器管理工具，用于在单机上定义和运行多个 Docker 容器。
+  ```bash
+  version: '3'
+services:
+  web:
+    image: nginx
+    ports:
+      - "8080:80"
+    depends_on:
+      - db
 
+  db:
+    image: mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+   运行一个 Web + MySQL 应用，docker-compose.yml 可能是这样的    
+  docker-compose up -d
+   运行 Compose
+  ```
+- **Swarm**：原生集群管理工具（已逐渐被 Kubernetes 取代）。 Docker Swarm 是 Docker 内置的 集群管理工具，用于在多台服务器上部署和管理容器。
+  ```dockerfile
+  docker swarm init --advertise-addr 192.168.1.100 #把当前机器设置为 Swarm 管理节点。
+  docker swarm join --token <TOKEN> 192.168.1.100:2377 # 让其他服务器加入 Swarm 集群。
+  docker service create --replicas 3 -p 8080:80 --name web nginx #在集群中 创建 3 个 Nginx 容器，并在 8080 端口提供服务。
+  ```  
 ---
 
 #### **二、Kubernetes 核心问题**
 **1. Pod 是什么？为什么需要 Pod？**  
-- **Pod**：Kubernetes 最小调度单元，包含一个或多个共享网络/存储的容器。  
+- **Pod**：Kubernetes 最小调度单元，包含一个或多个共享网络/存储的容器。 Kubernetes 不会直接管理容器，而是管理 Pod，每个 Pod 里可以运行一个或多个容器。Pod 内的容器共享 IP 地址、存储卷（Volume），可以通过 localhost 互相通信。
 - **设计目的**：  
   - 支持紧密耦合的容器（如日志收集 Sidecar）。  
   - 共享资源（如 Volume、IP 地址）。  
