@@ -13,11 +13,14 @@
   确保最后一个ACK包被对方接收，防止旧连接的延迟报文干扰新连接。
 
 **2. TCP和UDP的区别？举一个大数据场景中使用UDP的例子。**  
-- **TCP**：面向连接、可靠传输（重传机制）、流量控制（滑动窗口）、拥塞控制（慢启动）。  
+- **TCP**：面向三次握手连接、可靠传输（重传机制）、流量控制（滑动窗口）、拥塞控制（慢启动）。  
 - **UDP**：无连接、不可靠、低延迟、无流量控制。  
 - **大数据场景示例**：  
   - Kafka的Metrics上报（轻量级统计信息，允许少量丢包）。  
   - Flink的TaskManager心跳通信（低延迟优先）。
+  - 在线游戏：对实时性要求高，偶尔丢包不会影响游戏体验。
+  - DNS 查询：传输数据量小、延迟低且对偶尔重传容忍。
+  - TCP 则适用于需要高可靠性、数据完整性保障的应用，如网页浏览、文件传输和电子邮件。
 
 ---
 
@@ -26,18 +29,19 @@
 ```bash
 tcpdump -i eth0 port 9092 -w kafka_traffic.pcap
 ```  
-- **分析**：用Wireshark打开`kafka_traffic.pcap`，过滤Kafka协议（如`kafka`关键字）。
+- **分析**：用Wireshark打开`kafka_traffic.pcap`，过滤Kafka协议（如`kafka`关键字）。ip.dst_host contains "cloudapp.azure.com”
+
 
 **4. 如何快速判断服务器是否监听某端口（如HDFS NameNode的8020）？**  
 ```bash
-nc -zv <NameNode_IP> 8020   # 成功显示"succeeded"，失败显示"Connection refused"
+nc -zv <NameNode_IP> 8020   # 成功显示"succeeded"，失败显示"Connection refused" nc：这是 netcat 工具，-z：启用零 I/O 模式，-v：启用详细（verbose）模式
 ss -tln | grep 8020         # 查看本地监听的TCP端口
 ```
 
 **5. 如何分析网络延迟问题？**  
 - **工具组合**：  
   1. `ping`：检查基础连通性和RTT（往返延迟）。  
-  2. `mtr`：动态追踪路由路径，识别中间节点丢包或延迟。  
+  2. `mtr`：动态追踪路由路径，识别中间节点丢包或延迟。  mtr -r -c 10 google.com
   3. `traceroute`：静态路由追踪。  
   4. `tcpdump`抓包分析TCP重传（`tcp.analysis.retransmission`）。  
 
@@ -56,7 +60,8 @@ net.ipv4.tcp_max_syn_backlog = 8192  # 增大SYN队列容量
 
 **7. 如何解决Kafka Producer发送消息的高延迟问题？**  
 - **网络层排查**：  
-  1. 检查Broker网络带宽：`sar -n DEV 1`（观察`rxkB/s`和`txkB/s`）。  
+  1. 检查Broker网络带宽：`sar -n DEV 1`（观察`rxkB/s`和`txkB/s`）。 sar：全称 System Activity Reporter，用于收集和显示系统性能数据（如 CPU、内存、I/O、网络等）的工具。
+-n DEV：指定显示网络设备（DEVice）的统计信息，比如每个网卡的收发包数、传输速率、错误数等。
   2. 抓包分析TCP窗口大小和重传率：  
      ```bash
      tcpdump -i eth0 host <Broker_IP> and port 9092 -w producer.pcap
@@ -64,7 +69,7 @@ net.ipv4.tcp_max_syn_backlog = 8192  # 增大SYN队列容量
   3. 调整Producer参数：  
      - `linger.ms=100`（增大批量发送延迟）。  
      - `compression.type=snappy`（减少网络传输量）。  
-
+这两个参数通常出现在 Kafka Producer 的配置中，目的是提高传输效率和吞吐量。
 ---
 
 #### **四、安全与防火墙**
