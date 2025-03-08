@@ -52,9 +52,9 @@ ss -tln | grep 8020         # 查看本地监听的TCP端口
 修改`/etc/sysctl.conf`，调整以下参数：  
 ```bash
 net.core.somaxconn = 65535       # 增大TCP连接队列长度（防止SYN Flood）
-net.ipv4.tcp_tw_reuse = 1        # 允许复用TIME_WAIT连接（需开启时间戳）
-net.ipv4.tcp_fin_timeout = 30    # 减少FIN_WAIT_2状态超时时间
-net.ipv4.tcp_max_syn_backlog = 8192  # 增大SYN队列容量
+net.ipv4.tcp_tw_reuse = 1        # 允许复用TIME_WAIT连接（需开启时间戳，允许内核重用处于 TIME_WAIT 状态的 TCP 连接。
+net.ipv4.tcp_fin_timeout = 30    # 减少FIN_WAIT_2状态超时时间,设置 TCP 连接在 FIN_WAIT_2 状态下等待的时间
+net.ipv4.tcp_max_syn_backlog = 8192  # 等待完成三次握手的连接请求，增大SYN队列容量
 ```  
 执行`sysctl -p`生效。
 
@@ -157,10 +157,10 @@ iptables -A INPUT -p tcp --dport 50010 -j DROP                   # 拒绝其他I
 #### **七、开放性问题**
 **14. 如果某机房网络中断，如何保障HDFS和Kafka的高可用？**  
 - **HDFS**：  
-  1. 确保数据跨机房多副本（`dfs.replication=3`且副本分布在多个机房）。  
-  2. 手动切换客户端到备用机房NameNode。  
+  1. 确保数据跨机房多副本（`dfs.replication=3`且副本分布在多个机房）。  dfs.replication=3 是 Hadoop HDFS（Hadoop Distributed File System） 的一个配置参数
+  2. 手动切换客户端到备用机房NameNode。 NameNode HA 配置： 部署多个 NameNode（主/备模式），借助 ZooKeeper 进行故障检测和自动切换，确保 NameNode 故障时服务仍能继续提供。
 - **Kafka**：  
-  1. 使用MirrorMaker工具同步Topic到备用机房。  
+  1. 使用MirrorMaker工具同步Topic到备用机房。 将 Kafka 数据在不同地点之间进行复制
   2. 生产端配置多Broker列表（`bootstrap.servers=primary:9092,backup:9092`）。  
 
 **15. 设计一个支持百万级QPS的Kafka集群网络架构。**  
@@ -168,8 +168,10 @@ iptables -A INPUT -p tcp --dport 50010 -j DROP                   # 拒绝其他I
   1. **Broker横向扩展**：部署至少10个Broker，分散Partition Leader。  
   2. **网络硬件**：万兆网卡，启用多队列（`ethtool -L eth0 combined 16`）。  
   3. **分区与副本**：  
-     - 每个Topic设置100+分区（`num.partitions=100`）。  
-     - 副本数`replication.factor=3`，保证跨机架分布。  
+     - 每个Topic设置100+分区（`num.partitions=100`）。Kafka 中的每个主题（Topic）会被划分为多个分区。  
+     - 副本数`replication.factor=3`，保证跨机架分布。  为了保证数据的高可用性和容错性，每个分区可以配置多个副本。
+Leader 副本： 负责处理读写请求。
+Follower 副本： 从 Leader 副本中同步数据，不直接处理外部请求。
   4. **客户端优化**：  
      - Producer启用`acks=1`（平衡可靠性和延迟）。  
      - Consumer增加并发度（`num.stream.threads=CPU核心数`）。  
