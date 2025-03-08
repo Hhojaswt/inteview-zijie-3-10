@@ -36,6 +36,7 @@ tcpdump -i eth0 port 9092 -w kafka_traffic.pcap
 ```bash
 nc -zv <NameNode_IP> 8020   # 成功显示"succeeded"，失败显示"Connection refused" nc：这是 netcat 工具，-z：启用零 I/O 模式，-v：启用详细（verbose）模式
 ss -tln | grep 8020         # 查看本地监听的TCP端口
+netstat -tuln | grep 8080
 ```
 
 **5. 如何分析网络延迟问题？**  
@@ -75,12 +76,12 @@ net.ipv4.tcp_max_syn_backlog = 8192  # 等待完成三次握手的连接请求�
 #### **四、安全与防火墙**
 **8. 如何用iptables限制HDFS DataNode的流量仅允许来自集群内网？**  
 ```bash
-iptables -A INPUT -p tcp --dport 50010 -s 10.0.0.0/24 -j ACCEPT  # DataNode数据传输端口
+iptables -A INPUT -p tcp --dport 50010 -s 10.0.0.0/24 -j ACCEPT  # DataNode数据传输端口，-A 是 “append”的缩写，用来将一条规则追加到指定链（这里是 INPUT 链）中,-p 用于指定数据包的协议，这里指定为 tcp,-s 用于指定数据包的源地址或地址范围
 iptables -A INPUT -p tcp --dport 50010 -j DROP                   # 拒绝其他IP
 ```
 
 **9. 如何防止SSH暴力破解？**  
-- **方法**：  
+- **方法**：  攻击者通过自动化工具反复尝试各种用户名和密码组合，试图获取服务器的登录凭证。
   1. 禁用密码登录，强制密钥认证：  
      ```bash
      # /etc/ssh/sshd_config
