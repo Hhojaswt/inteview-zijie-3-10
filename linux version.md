@@ -189,6 +189,7 @@ net.core.somaxconn	最大 TCP 连接排队数（提高高并发能力）	128
 
 **Q2: 调整文件系统挂载参数**  
 在 `/etc/fstab` 中添加 `noatime,nobarrier`（减少磁盘写入）。  
+/etc/fstab 是 Linux 和 Unix 系统中的 文件系统表（Filesystem Table），它用于定义 磁盘分区、网络存储（NFS）、交换分区（swap） 等文件系统的自动挂载规则。
 
 ---
 
@@ -308,8 +309,29 @@ df -i          # 查看 inode 使用率
 ```
 
 ---
-
-### **七、附加考点**
-
-#### **1. 零拷贝（Zero-Copy）技术**  
-- 通过 `sendfile()` 系统调用实现，减少数据在用户态和内核态之间的拷贝，常用于 Kafka、Nginx 等高性能场景。  
+### **指令：**
+更改系统语言：
+```bash
+[ray@CentOSTest ~]$ locale
+LANG=zh_CN.UTF-8
+[ray@CentOSTest ~]$ sudo localectl set-locale LANG=en_US.UTF-8
+[ray@CentOSTest ~]$ localectl status
+   System Locale: LANG=en_US.UTF-8
+       VC Keymap: us
+      X11 Layout: us
+```
+who：查看谁在线
+netstat -a：查看网路连接状态
+```bash
+roto Recv-Q Send-Q Local Address           Foreign Address         State      
+tcp        0      0 localhost:10248         0.0.0.0:*               LISTEN     
+tcp        0      0 localhost:2381          0.0.0.0:*               LISTEN  
+```
+ps -aux：查看背景执行状态
+```bash
+USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+root           1  0.1  0.0 167484 12536 ?        Ss   07:04   0:04 /sbin/init
+root           2  0.0  0.0      0     0 ?        S    07:04   0:00 [kthreadd]
+```
+### **文件：**
+- usr/share/doc: 大部分指令或者软件制作者，都会将说明文档存放到这里面
