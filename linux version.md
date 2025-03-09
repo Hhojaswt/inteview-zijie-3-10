@@ -333,5 +333,220 @@ USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
 root           1  0.1  0.0 167484 12536 ?        Ss   07:04   0:04 /sbin/init
 root           2  0.0  0.0      0     0 ?        S    07:04   0:00 [kthreadd]
 ```
+默认权限：umask
+```bash
+ray@CloudFrontend:~$ umask
+0002 
+#看后面三个数字，每个数字代表被拿掉的权限，0就是没有被拿掉权限，则是rwx都在，2则是被拿掉了w(2)。
+```
+
+文件特殊权限： SUID, SGID, SBIT
+```bash
+[root@study tmp]# chmod 4755 test; ls -l test &lt;==加入具有 SUID 的权限
+-rwsr-xr-x 1 root root 0 Jun 16 02:53 test
+[root@study tmp]# chmod 6755 test; ls -l test &lt;==加入具有 SUID/SGID 的权限
+-rwsr-sr-x 1 root root 0 Jun 16 02:53 test
+```
+
+touch(修改文件时间或者创建新文件)： 
+```bash
+ray@HongKongVPS:~$ touch jny
+-rw-rw-r--  1 ray  ray      0 Mar  9 10:42 jny
+```
+whereis(有一些特定的目录寻找文件名)：
+```bash
+ray@CloudFrontend:~$ whereis passwd
+passwd: /usr/bin/passwd /etc/passwd /usr/share/man/man5/passwd.5.gz /usr/share/man/man1/passwd.1ssl.gz /usr/share/man/man1/passwd.1.gz
+```
+
+which 用于查找某个可执行文件的路径，通常用于检查某个命令的路径是否在 PATH 环境变量中。
+
+find：
+```
+# 寻找user是ray的文件
+ray@CloudFrontend:~$ sudo find /home -user ray
+/home/ray
+/home/ray/.lesshst
+```
+
+初始化磁盘：使用parted分区：
+```
+[ray@CentOSTest ~]$ sudo parted /dev/sda
+GNU Parted 3.2
+使用 /dev/sdc
+Welcome to GNU Parted! Type 'help' to view a list of commands.
+(parted) mklabel gpt
+(parted) quit
+
+#使用parted print查看磁盘信息
+[ray@CentOSTest ~]$ sudo parted /dev/sda print
+Model: Msft Virtual Disk (scsi)
+Disk /dev/sdc: 53.7GB
+Sector size (logical/physical): 512B/4096B
+Partition Table: gpt
+```
+使用gdisk来分区
+```
+[ray@CentOSTest ~]$ sudo gdisk /dev/sda
+```
+通过lsblk看磁盘分区状态
+```
+ray@HongKongVPS:~$ lsblk
+NAME    MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
+sda       8:0    0   30G  0 disk 
+├─sda1    8:1    0   29G  0 part /
+├─sda2    8:2    0   10K  0 part 
+├─sda14   8:14   0    4M  0 part 
+├─sda15   8:15   0  106M  0 part /boot/efi
+└─sda16 259:0    0  913M  0 part /boot
+```
+
+使用mkfs.ext4格式化磁盘创建ext4文件系统：
+```
+[ray@CentOSTest ~]$ sudo mkfs.ext4 -b 4K /dev/sda1
+mke2fs 1.45.4 (23-Sep-2019)
+```
+使用mount来挂载分区：
+```
+[ray@CentOSTest ~]$ sudo mount UUID="0d29996c-ec2c-4d3e-bdc2-bea9101f7426" /data/ext4
+[ray@CentOSTest ~]$ sudo mount UUID="4303dedb-c0b3-4168-9cd7-77680ce61334" /data/xfs
+```
+编辑etc/fstab设置开机自动挂载：
+```
+[ray@CentOSTest ~]$ sudo nano /etc/fstab
+UUID=0d29996c-ec2c-4d3e-bdc2-bea9101f7426 /data/ext4 ext4 defaults 0 0
+UUID=4303dedb-c0b3-4168-9cd7-77680ce61334 /data/xfs xfs defaults 0 0
+# 使用mount -a加载etc/fstab文件
+[ray@CentOSTest ~]$ sudo mount -a
+# 两快分区成功挂载
+[ray@CentOSTest ~]$ df
+文件系统           1K-块    已用      可用 已用% 挂载点
+/dev/sda2       10475520  105984  10369536    2% /data/xfs
+```
+
+通过Loop将文件映射成设备：
+```
+#创建空文件
+[ray@CentOSTest ~]$ sudo dd if=/dev/zero of=/data/loopdev bs=1M count=512
+[ray@CentOSTest ~]$ ll -h /data/
+总用量 513M
+drwxr-xr-x. 3 root root 4.0K 11月 25 03:17 ext4
+-rw-r--r--. 1 root root 512M 11月 25 05:58 loopdev
+drwxr-xr-x. 2 root root    6 11月 25 03:21 xfs
+
+使用mkfs.xfs格式化此文件：
+[ray@CentOSTest ~]$ sudo mkfs.xfs -f /data/loopdev
+
+使用mount挂载：
+[ray@CentOSTest ~]$ sudo mount -o loop /data/loopdev /data/loop
+```
+常用压缩指令:gzip,bzip,xz zcat/zmore/zless/zgrep 压缩单个文件
+```
+[ray@CentOSTest tmp]$ gzip -v services
+[ray@CentOSTest tmp]$ zcat services.gz #读取文件，gzip -d解压缩文件
+```
+tar将多个文件或者目录打包成一个大文件的指令功能。
+```
+压缩：tar -jcv filename.tar.bz2 <要被压缩的文件或者目录名称>
+查询：tar -jtv filename.tar.bz2
+解压缩：tar -jxv filename.tar.vz2 -C <解压缩的目标目录>
+```
+type查看指令是否来源于bash
+```
+ray@HongKongVPS:~$ type ls
+ls is aliased to `ls --color=auto'
+```
+变量的取用与设置：echo
+```
+ray@HongKongVPS:~$ echo $jeny
+ray@HongKongVPS:~$ jeny=jenny
+ray@HongKongVPS:~$ echo $jeny
+jenny
+```
+- env(export也可以)：查看环境变量和说明
+- set：观察所有变量(环境变量和自订变量)
+
+数据流重导向，标准输出(stdout)：代码为1，使用 > (会覆盖文件) 或者 >>(会累积添加)
+标准错误输出(stderr)：代码为2，使用2>(会覆盖文件) 或 2>>(会累积添加)
+```
+# 将/home -name .bashrc的stdout输出到list_right，stderr输出到list_error
+ray@HongKongVPS:~$ find /home -name .bashrc > list_right 2> list_error
+
+&& 判断如果前面指令回传值是0（正确），则执行&&的指令
+ray@HongKongVPS:~$ ls rayfile && echo 'file exist'
+ls: cannot access 'rayfile': No such file or directory
+
+|| 判断如果前面指令回传值不是0，则执行||的指令
+ray@HongKongVPS:~$ ls rayfile || echo 'file not exist'
+ls: cannot access 'rayfile': No such file or directory
+file not exist
+```
+grep用法：
+```
+ray@HongKongVPS:~$ grep "hello" file
+hello
+hello world
+
+```
+
 ### **文件：**
 - usr/share/doc: 大部分指令或者软件制作者，都会将说明文档存放到这里面
+## **2. 用户及权限相关**
+| 路径 | 作用 |
+|------|------|
+| `/home/` | **普通用户主目录**（如 `/home/user`），存放用户个人文件 |
+| `/root/` | **root 用户的主目录**（普通用户无权限访问） |
+| `/etc/passwd` | 用户账户信息（用户名、UID、GID、shell 等） |
+| `/etc/shadow` | **加密存储用户密码**（只有 root 能读） |
+| `/etc/group` | 用户组信息 |
+| `/etc/sudoers` | sudo 权限配置文件（`visudo` 编辑） |
+
+## **3. 系统配置**
+| 路径 | 作用 |
+|------|------|
+| `/etc/` | **系统配置文件目录**，所有软件的配置一般都在这里 |
+| `/etc/fstab` | **自动挂载配置**（磁盘分区、NFS 挂载） |
+| `/etc/hosts` | **本地主机名解析**（不用 DNS） |
+| `/etc/resolv.conf` | **DNS 服务器配置** |
+| `/etc/profile` | **全局环境变量**（所有用户生效） |
+| `/etc/bashrc` | **Shell 运行时配置** |
+
+## **4. 系统核心文件**
+| 路径 | 作用 |
+|------|------|
+| `/bin/` | **基本命令**（`ls`、`cp`、`mv`、`rm`、`cat`） |
+| `/sbin/` | **系统管理命令**（`reboot`、`shutdown`、`fdisk`） |
+| `/usr/bin/` | **普通用户可用的命令**（`vim`、`nano`、`python`） |
+| `/usr/sbin/` | **管理员命令**（`apachectl`、`service`、`iptables`） |
+| `/lib/` | **系统基础库**（`libc.so`、`libm.so`） |
+| `/usr/lib/` | **用户软件库** |
+
+## **5. 设备相关**
+| 路径 | 作用 |
+|------|------|
+| `/dev/` | **设备文件**（所有硬件设备在这里） |
+| `/dev/sda` | **磁盘设备**（`sda`、`sdb`、`sdc` 表示不同的硬盘） |
+| `/dev/null` | **黑洞设备**，丢弃所有输入的数据 |
+| `/dev/zero` | **无限输出零**，通常用于创建空文件 |
+| `/dev/tty` | 终端设备 |
+
+## **6. 进程与系统信息**
+| 路径 | 作用 |
+|------|------|
+| `/proc/` | **虚拟文件系统**，存放进程和系统信息 |
+| `/proc/cpuinfo` | **CPU 详细信息** |
+| `/proc/meminfo` | **内存使用情况** |
+| `/proc/version` | **Linux 版本信息** |
+| `/proc/<PID>/` | **某个进程的详细信息**（`PID` 是进程 ID） |
+| `/sys/` | **内核参数、设备信息**（类似 `/proc`） |
+
+## **7. 日志相关**
+| 路径 | 作用 |
+|------|------|
+| `/var/log/` | **系统日志存放目录** |
+| `/var/log/syslog` 或 `/var/log/messages` | **系统日志** |
+| `/var/log/auth.log` | **用户登录、认证日志** |
+| `/var/log/dmesg` | **系统启动日志** |
+| `/var/log/nginx/access.log` | **Nginx 访问日志** |
+| `/var/log/nginx/error.log` | **Nginx 错误日志** |
+
