@@ -6,6 +6,43 @@
 - **LEFT JOIN**：返回左表所有行，右表不匹配的行用 `NULL` 填充。  
 - **RIGHT JOIN**：返回右表所有行，左表不匹配的行用 `NULL` 填充。  
 - **FULL OUTER JOIN**：返回左右表所有行，不匹配的部分用 `NULL` 填充（MySQL 不支持，需用 `UNION` 实现）。  
+```sql
+SELECT A.列1, A.列2, B.列3
+FROM 表A
+LEFT JOIN 表B
+ON A.公共列 = B.公共列;
+
+CROSS JOIN（交叉连接）
+笛卡尔积（每一行匹配另一表的所有行）。
+SELECT A.列1, B.列2
+FROM 表A
+CROSS JOIN 表B;  #生成所有 可能的匹配组合
+```
+
+## **哈希连接的原理** ##
+Hash Join 主要用于 大规模数据集 之间的连接，尤其适用于 无索引的表连接，在 等值连接（A.col = B.col）情况下性能最佳。
+- 构建哈希表（Build Phase）：
+选择 较小的表（或较小的数据集） 作为 构建表（Build Table）。以 JOIN 连接键为 哈希键，为其创建 哈希表（Hash Table），存入内存。
+- 探测匹配（Probe Phase）：
+扫描 较大的表（Probe Table），使用相同的哈希函数计算 JOIN 连接键的哈希值，在哈希表中查找匹配项。
+```sql
+- 返回匹配数据：
+如果哈希表中找到了匹配值，则返回结果，否则跳过该行。
+SELECT A.ID, A.Name, B.Salary
+FROM A
+JOIN B ON A.ID = B.ID;
+```
+## **嵌套循环连接** ##
+外层循环遍历 表A 的每一行，内层循环在 表B 中查找匹配行。
+
+## **归并连接** ##
+适用于 已排序的数据。顺序遍历两个表，从小到大逐步匹配，提高效率。
+
+
+如果 两张表很小 ➝ 嵌套循环（Nested Loop）
+如果 一张表小，一张表大 ➝ 哈希连接（Hash Join）
+如果 两张表都很大且已排序 ➝ 归并连接（Merge Join）
+如果 表有索引 ➝ 索引嵌套循环（Index Nested Loop）
 
 ---
 
