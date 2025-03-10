@@ -486,7 +486,32 @@ grep用法：
 ray@HongKongVPS:~$ grep "hello" file
 hello
 hello world
+```
 
+备份：
+- XFS文件系统备份指令
+```
+[root@CentOSTest bin]# xfsdump -l 0 -L boot_all -M boot_all -f /srv/boot.dump /boot
+```
+- XFS文件系统备份还原指令xfsrestore
+```
+[ray@CentOSTest ~]$ sudo xfsrestore -f /srv/boot.dump -L boot_all /boot
+```
+- 用dd备份
+```
+[ray@CentOSTest ~]$ dd if=/etc/passwd of=/tmp/passwd.back #of是output file，if是input file
+```
+CPU相关命令：
+```
+cat /proc/cpuinfo #查看 CPU 详细信息
+top               #查看 CPU 负载
+```
+
+RAM相关命令：
+```
+free -h #查看内存使用情况
+top     #查看内存占用进程
+vmstat -s #查看内存占用历史
 ```
 
 ### **文件：**
