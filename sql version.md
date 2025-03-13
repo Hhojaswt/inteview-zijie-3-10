@@ -153,6 +153,9 @@ SQL 查询中出现数据倾斜如何解决？
 
 ### **9. 主从同步与高可用**
 **问题：**  
+主库（Master） 执行事务，写入 binlog（二进制日志）。
+从库（Slave） 读取 binlog 并写入 relay log（中继日志）。
+从库（Slave） 执行 relay log 中的 SQL 语句。
 MySQL 主从复制延迟过高，可能原因及解决方案？  
 **答案：**  
 **原因**：  
@@ -163,6 +166,12 @@ MySQL 主从复制延迟过高，可能原因及解决方案？
 - 升级从库硬件。  
 - 分库分表降低单库压力。  
 - 使用半同步复制或并行复制。
+- Step 2（IO 线程获取 binlog） → 网络延迟
+Step 3（SQL 线程执行 relay log） → SQL 复杂度、IO 瓶颈、锁等待
+析慢查询：
+SHOW PROCESSLIST;
+主从间使用私有网络，避免公网 IP 复制数据。检查网络：ping、traceroute 查看网络延迟。
+
 
 ---
 
