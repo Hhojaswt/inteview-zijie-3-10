@@ -398,6 +398,12 @@ SOX（金融合规）
 HIPAA（医疗数据合规）
 5️⃣ 运维自动化 & DevOps
 数据库 CI/CD
+CI/CD 主要包含 四个阶段：
+
+CI（持续集成） → 代码合并 & 自动构建
+CD（持续交付） → 自动化测试 & 人工审核
+CD（持续部署） → 自动部署 & 线上发布
+监控 & 回滚 → 观察系统状态，必要时回滚
 
 代码管理（Liquibase、Flyway）
 流水线自动化（Jenkins、GitHub Actions）
