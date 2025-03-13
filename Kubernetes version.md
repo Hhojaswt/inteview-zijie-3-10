@@ -328,3 +328,95 @@ services:
 - 熟悉 Operator 模式（如 Spark Operator、Kafka Operator）。  
 - 有大规模集群（1000+节点）的运维经验。  
 - 掌握 Service Mesh（如 Istio）在大数据场景的应用。
+
+1. 数据运维架构设计的核心要素
+1️⃣ 数据基础架构
+数据存储
+
+选择合适的存储方案（MySQL、PostgreSQL、MongoDB、HDFS、S3）
+设计冷热数据分层存储
+采用分布式存储架构（如 Hadoop、Ceph）
+计算框架
+
+批处理（Hadoop、Spark）
+流处理（Flink、Kafka Streams）
+SQL 查询（Presto、Trino、ClickHouse）
+数据仓库
+
+OLAP（在线分析）：ClickHouse、Druid、Doris
+OLTP（事务处理）：MySQL、PostgreSQL
+云数仓（BigQuery、Snowflake）
+数据湖
+
+开源：Apache Iceberg、Delta Lake、Hudi
+云：AWS Lake Formation、Azure Data Lake
+2️⃣ 数据采集与集成
+日志 & 事件数据采集
+
+日志采集（Filebeat、Fluentd、Logstash）
+事件数据（Kafka、Pulsar、RabbitMQ）
+ETL & 数据同步
+
+实时数据同步（Canal、DataX、Debezium）
+批量数据同步（Sqoop、Airflow、Data Pipeline）
+数据治理
+
+数据清洗（Apache Nifi、Airbyte）
+数据质量监控（Great Expectations）
+3️⃣ 数据监控与告警
+数据库性能监控
+
+MySQL：Prometheus + Grafana + MySQL Exporter
+Redis：Redis Exporter + Prometheus
+MongoDB：MongoDB Exporter
+日志 & 追踪
+
+集中日志（ELK Stack、Loki）
+分布式追踪（Jaeger、Zipkin）
+APM 监控（Skywalking、New Relic）
+告警系统
+
+Prometheus + AlertManager
+自定义 Webhook 到飞书、钉钉、企业微信
+4️⃣ 数据安全与合规
+权限管理
+
+RBAC（角色权限管理）
+数据访问控制（Apache Ranger、AWS IAM）
+数据加密
+
+传输加密（TLS、SSL）
+存储加密（KMS、HSM）
+数据审计
+
+操作审计（数据库审计系统）
+日志存档（云存储归档）
+合规要求
+
+GDPR、CCPA（用户数据保护）
+SOX（金融合规）
+HIPAA（医疗数据合规）
+5️⃣ 运维自动化 & DevOps
+数据库 CI/CD
+
+代码管理（Liquibase、Flyway）
+流水线自动化（Jenkins、GitHub Actions）
+基础设施自动化
+
+配置管理（Ansible、Terraform）
+容器化（Docker + Kubernetes）
+数据库运维自动化（DBA 工具，如 DMS）
+AI 运维（AIOps）
+
+智能 SQL 优化（AI-based Query Tuning）
+异常检测（Machine Learning for Anomaly Detection）
+6️⃣ 数据可视化
+报表 & BI
+
+开源 BI：Superset、Metabase
+企业 BI：Tableau、Power BI
+实时仪表盘
+
+监控（Grafana、Kibana）
+业务数据看板（DataV、ECharts）
+
