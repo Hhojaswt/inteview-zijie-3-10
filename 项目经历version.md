@@ -7,6 +7,14 @@
 收集数据库查询性能数据（借助 SQL Query Store）帮助识别慢查询和性能瓶颈。
 针对本地服务器，借助 Azure Arc 建立混合云环境中的统一监控体系，实现跨云和本地资源的数据接入。
 
+安装AMA过程中报错：1. 客户使用的版本是否兼容，例如客户在使用2007则告知客户可以升级version，如果只是希望收取数据还可以使用API的方式进行部署2. 客户的网路环境有endpoint是否开通，先检查防火墙，接着用ping和nslookup（如果是linux就用curl）3. 检查客户的permission有没有开通，是否有system identity 4. 是否有足够的disk space：C:\Packages\Plugins\Microsoft.Azure.Monitor.AzureMonitorWindowsAgent	500 MB 5.配置private link,创建 AMPLS 时，DNS 区域会将 Azure Monitor 终结点映射到专用 IP，以通过专用链接发送流量。 Azure Monitor 同时使用特定于资源的终结点和共享的全局/区域终结点来访问 AMPLS 中的工作区和组件。
+安装AMA方法：1. 用DCR 2.用policy 3. 用PS
+
+过程中syslog没收上来（linux）：先检查是否有磁盘满了的情况
+
+检查发现客户proxy有ip未开通并且dns有域名没加进去：检查log发现ODS有error报错fail to connect，先进行nslookup检查具体endpoint的域名解析以及有没有上网功能，接着检查performance是否有报错，最后查看task manager是否有程序正常运行，
+安装完成后帮助客户收集heartbeat，perf等数据上云进行检测，收集机器的metrics,VM insight到grafana，custom metrics先拿取token用REST API request,此请求使用客户端 ID 和客户端密码对请求进行身份验证。将以下 JSON 存储到本地计算机上名为 custommetric.json 的文件中。在Azure AD中创建服务主体并分配权限，在grafana中安装Azure monitor插件，创建dashboard后可以编写查询。
+
 - 数据存储与处理：
 将所有收集到的数据统一存储在 Log Analytics Workspace 中，通过结构化存储为后续分析、报表生成提供数据基础。
 借助高性能数据仓库技术，确保数据的实时写入与高效查询，支持大规模数据集下的复杂查询需求。
