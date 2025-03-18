@@ -10,8 +10,27 @@
 安装AMA过程中报错：1. 客户使用的版本是否兼容，例如客户在使用2007则告知客户可以升级version，如果只是希望收取数据还可以使用API的方式进行部署2. 客户的网路环境有endpoint是否开通，先检查防火墙，接着用ping和nslookup（如果是linux就用curl）3. 检查客户的permission有没有开通，是否有system identity 4. 是否有足够的disk space：C:\Packages\Plugins\Microsoft.Azure.Monitor.AzureMonitorWindowsAgent	500 MB 5.配置private link,创建 AMPLS 时，DNS 区域会将 Azure Monitor 终结点映射到专用 IP，以通过专用链接发送流量。 Azure Monitor 同时使用特定于资源的终结点和共享的全局/区域终结点来访问 AMPLS 中的工作区和组件。
 安装AMA方法：1. 用DCR 2.用policy 3. 用PS
 
-过程中syslog没收上来（linux）：先检查是否有磁盘满了的情况
+过程中syslog没收上来（linux）：先检查是否有磁盘满了的情况，From the case description, I noticed that you might need some help from Microsoft support. From the former message I understand that you are occurring an error message from the OMS extension.
 
+Also you have encountered an error from the VM.
+ 
+ 
+Cause:
+This issue can occur if /etc/opt/microsoft/omsagent contains broken symlinks to a non-existent workspace directory.
+Please kindly check whether the symlinks to the certs and conf directories are valid using the following command:
+# ls -la /etc/opt/microsoft/omsagent
+If the results appeared as follows, please kindly check the solution below.
+ 
+Solution:
+Please manually remove the broken symlinks as follows and reinstall the extension then the extension will be good to transfer syslog.
+# rm /etc/opt/microsoft/omsagent/certs
+# rm /etc/opt/microsoft/omsagent/conf
+ The error also occurs when there is hardening on the machine, you can check the status for hardening by running the command, "sestatus"
+3.	As we discussed in the meeting, Issue is resolved by copying the contents /etc/rsyslog.d/95-omsagent.conf from a working server to the non-working server. 
+               In the non-working server, the contents were empty. Then we ran the troubleshooter and found there is openssl error and restarted the rsyslog. Syslog would be seen from the workspace.
+4.	Then we look up the issue that 25226 is not working on one server, here is a document that you can kindly refer to 25226 troubleshooting: https://learn.microsoft.com/en-us/azure/sentinel/troubleshooting-cef-syslog?tabs=cef#syslog-ng-daemon. 
+ 
+We compared the files between two servers and noticed that there is security_events.conf file missing under omsagent.d. After that we added the certain file content under the path and 25226 could be heard again. We reach an agreement to monitor the issue for somedays.
 检查发现客户proxy有ip未开通并且dns有域名没加进去：检查log发现ODS有error报错fail to connect，先进行nslookup检查具体endpoint的域名解析以及有没有上网功能，接着检查performance是否有报错，最后查看task manager是否有程序正常运行，
 安装完成后帮助客户收集heartbeat，perf等数据上云进行检测，收集机器的metrics,VM insight到grafana，custom metrics先拿取token用REST API request,此请求使用客户端 ID 和客户端密码对请求进行身份验证。将以下 JSON 存储到本地计算机上名为 custommetric.json 的文件中。在Azure AD中创建服务主体并分配权限，在grafana中安装Azure monitor插件，创建dashboard后可以编写查询。
 
