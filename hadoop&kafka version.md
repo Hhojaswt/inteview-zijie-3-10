@@ -323,11 +323,42 @@ RocksDB 是一个由 Facebook 开发、现在由开源社区维护的高性能�
 #### **2. 进阶题**
 **题目：Hadoop 集群中出现小文件问题如何解决？**  
 **答案：**  
-- **问题影响**：NameNode 内存压力大，MapReduce 任务效率低。  
+- **问题影响**：
+- NameNode 内存压力大，MapReduce 任务效率低。存储利用率低,磁盘I/O性能下降
+- 通常，HDFS 默认的 Block 大小为 128MB 或 256MB：如果文件远小于块大小，意味着 Hadoop 需要为每个小文件存储元数据，且元数据存储在 NameNode 内存中，极大消耗 NameNode 资源。导致大量资源浪费、元数据负载过高，进而严重影响 NameNode 性能。  
 - **解决方案**：  
-  - **合并小文件**：使用 `Hadoop Archive (HAR)` 或 `CombineFileInputFormat`。  
-  - **写入时优化**：在数据生成阶段合并小文件（如 Flink 写入 HDFS 时设置滚动策略）。  
+  - **合并小文件**：使用 `Hadoop Archive (HAR)` 或 `CombineFileInputFormat`。
+  ```
+  hadoop fs -getmerge /smallfiles/* merged_file.txt
+  hadoop fs -put merged_file.txt /merged_large_files/
+  hadoop archive -archiveName smallfiles.har -p /user/hadoop/smallfiles /user/hadoop/output/ #创建HAR归档
+  ```
+  - **写入时优化**：在数据生成阶段合并小文件（如 Flink 写入 HDFS 时设置滚动策略）。将大量小文件合并到 Hadoop 原生的存储格式如 SequenceFile、Avro 等：
+  ```
+    SequenceFile.Writer writer = SequenceFile.createWriter(configuration,
+    SequenceFile.Writer.file(path),
+    SequenceFile.Writer.keyClass(Text.class),
+    SequenceFile.Writer.valueClass(BytesWritable.class));
+  ```
   - **离线处理**：定期运行 Spark/Hive 作业合并历史小文件。
+
+ ```
+业务产生大量小文件
+        │
+        ▼
+ 确认是否需要实时访问？
+        │
+┌───────┴─────────┐
+│                 │
+▼                 ▼
+需要实时访问      不需要实时访问
+│                            │
+▼                            ▼
+用HBase合适的存储系统   定期合并为SequenceFile或大文件存储
+                        │
+                        ▼
+             存入HDFS，提升效率
+ ```
 
 ---
 
@@ -335,14 +366,32 @@ RocksDB 是一个由 Facebook 开发、现在由开源社区维护的高性能�
 **题目：HDFS 集群出现块丢失（Missing Blocks），如何恢复？**  
 **答案：**  
 - **检查步骤**：  
-  1. 通过 `hdfs fsck /` 检查损坏文件及缺失块列表。  
-  2. 查看 DataNode 日志，确认是否因磁盘故障或网络中断导致块丢失。  
+  1. 通过 `hdfs fsck /` 检查损坏文件及缺失块列表。
+  ```
+  hdfs fsck / -list-corruptfileblocks
+  ```
+  2. 查看 DataNode 日志，确认是否因磁盘故障或网络中断导致块丢失。
+  3. 访问 NameNode 页面（默认：http://namenode-host:50070 或 9870）,查看 Missing Blocks 部分。
 - **恢复方法**：  
   - 如果副本数足够（默认 3 副本），HDFS 会自动从其他节点复制块。  
-  - 若副本不足，尝试从备份恢复或手动删除损坏文件（`hdfs dfs -rm`）。  
+  - 若副本不足，尝试从备份恢复或手动删除损坏文件（`hdfs dfs -rm`）。
+  ```
+  hdfs fsck / -list-corruptfileblocks -locations -blocks #确认丢失块具体情况
+  hdfs dfsadmin -report #确认 DataNode 状态
+  hdfs fsck / -delet #尝试自动恢复
+  hdfs dfs -put backup-file /path/in/hdfs/ #手动从备份文件恢复
+  hdfs dfs -setrep 3 /path/file #设置合理副本数
+  grep -i "missing block" namenode.log #监控 NameNode 日志以发现早期异常
+  ```
 - **预防措施**：  
   - 定期巡检集群，监控 `Under Replicated Blocks` 指标。  
   - 设置合理的副本数（如跨机架分布）。
+- **问题原因**：
+DataNode 节点故障或宕机（磁盘损坏或服务器故障）。
+磁盘空间不足 导致写入数据不完整。
+网络异常 导致数据块传输失败或损坏。
+人为操作错误（如误删除数据文件或块）。
+副本数设置不合理（如只设置1个副本，DataNode出问题后无备份可恢复）。
 
 ---
 
@@ -367,12 +416,12 @@ RocksDB 是一个由 Facebook 开发、现在由开源社区维护的高性能�
 ### **四、字节跳动特色问题**
 **题目：在字节跳动的大规模集群中，如何优化 YARN 的资源分配效率？**  
 **答案：**  
-- **动态资源调整**：  
+- **选择合适的调度器（Scheduler）**：  
   - 启用 YARN 的 `DominantResourceCalculator`，支持 CPU/内存混合调度。  
   - 使用弹性队列（如 Capacity Scheduler 的动态队列配置）。  
-- **资源隔离**：  
-  - 通过 Cgroups 限制容器资源，避免任务间干扰。  
-  - 区分在线（Flink）和离线（Hadoop）任务队列，保证 SLA。  
-- **自动化运维**：  
-  - 基于历史数据预测资源需求，动态调整资源配额。  
-  - 结合字节内部工具（如资源治理平台）实现智能调度。
+- **优化队列（Queue）配置与优先级管理**：  
+  - capacity-scheduler.xml，高优先级任务队列给予更多资源保障。  
+- **启用资源抢占（Preemption）**：  
+  - 启用抢占机制，可以避免长时间占用资源的任务影响整体效率。
+- **合理设置 Container 大小和数量**：
+  - YARN 中的计算资源以 Container（容器） 为单位分配，资源过大或过小都会降低效率。内存（Memory）：一般 Container 大小设置为任务需求的2倍左右最佳。
