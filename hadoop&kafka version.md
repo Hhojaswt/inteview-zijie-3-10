@@ -424,4 +424,144 @@ DataNode 节点故障或宕机（磁盘损坏或服务器故障）。
 - **启用资源抢占（Preemption）**：  
   - 启用抢占机制，可以避免长时间占用资源的任务影响整体效率。
 - **合理设置 Container 大小和数量**：
-  - YARN 中的计算资源以 Container（容器） 为单位分配，资源过大或过小都会降低效率。内存（Memory）：一般 Container 大小设置为任务需求的2倍左右最佳。
+YARN 中的计算资源以 Container（容器） 为单位分配，资源过大或过小都会降低效率。内存（Memory）：一般 Container 大小设置为任务需求的2倍左右最佳。
+
+
+### **一、Spark 基础题**
+
+#### **1. 基础题**  
+**题目：Spark 的宽依赖（Wide Dependency）和窄依赖（Narrow Dependency）有什么区别？**  
+**答案：**  
+- **窄依赖**：  
+  - 父 RDD 的每个分区最多被子 RDD 的一个分区依赖（如 `map`、`filter`）。  
+  - 支持高效的流水线执行（无需 Shuffle）。  
+- **宽依赖**：  
+  - 父 RDD 的一个分区可能被子 RDD 的多个分区依赖（如 `groupByKey`、`join` 未指定相同分区器）。  
+  - 需要 Shuffle 操作，是 Stage 划分的边界。  
+
+---
+
+#### **2. 进阶题**  
+**题目：Spark 的内存管理模型是怎样的？如何避免 Executor 的 OOM 问题？**  
+**答案：**  
+- **内存模型**：  
+  - **堆内存**分为 `Execution Memory`（Shuffle、Sort 等计算）和 `Storage Memory`（缓存数据）。  
+  - 默认比例：`spark.memory.fraction=0.6`（Execution + Storage），其中 `spark.memory.storageFraction=0.5`。  
+- **避免 OOM**：  
+  - 调整 `spark.executor.memory` 和 `spark.memory.fraction`。  
+  - 减少缓存数据量（如使用 `MEMORY_AND_DISK` 缓存级别）。  
+  - 优化 Shuffle 参数（如 `spark.shuffle.partitions` 增加分区数，减少单分区数据量）。  
+
+---
+
+#### **3. 实战题**  
+**题目：Spark 作业执行过程中出现 `Shuffle FetchFailedException`，可能的原因和解决方案是什么？**  
+**答案：**  
+- **常见原因**：  
+  - **Executor 宕机**：节点故障或 Executor OOM 被 YARN/K8s 终止。  
+  - **网络不稳定**：Shuffle 数据传输超时（如 `spark.shuffle.io.maxRetries` 默认 3 次重试不足）。  
+  - **数据倾斜**：单个 Reduce 分区数据量过大。  
+- **解决方案**：  
+  - 增加 `spark.shuffle.io.maxRetries` 和 `spark.shuffle.io.retryWait`。  
+  - 优化数据倾斜（如加盐打散 Key 或使用 `spark.sql.adaptive.enabled=true` 动态调整分区）。  
+  - 检查 Executor 日志，确认是否因资源不足导致 OOM。  
+
+---
+
+### **二、Spark 调优与字节特色场景**
+
+#### **4. 调优题**  
+**题目：如何处理 Spark 作业的数据倾斜问题？请结合字节跳动大规模数据场景说明。**  
+**答案：**  
+- **通用方案**：  
+  - **预处理**：过滤异常 Key（如空值或测试数据）。  
+  - **加盐打散**：对倾斜 Key 添加随机前缀，分散到多个分区。  
+  - **两阶段聚合**：先局部聚合（加盐后聚合），再去盐全局聚合。  
+- **字节特色优化**：  
+  - **自适应执行**：启用 `spark.sql.adaptive.enabled=true`，动态合并小分区或拆分倾斜分区。  
+  - **资源隔离**：对倾斜 Task 分配独立 Executor，避免影响其他任务。  
+  - **监控工具**：通过字节内部监控平台定位倾斜 Key（如长尾 Task 的输入数据量）。  
+
+---
+
+#### **5. 资源管理题**  
+**题目：在字节跳动的 YARN 集群中，如何合理配置 Spark 作业的 Executor 数量和资源参数？**  
+**答案：**  
+- **核心原则**：  
+  - **Executor 大小**：避免过大（YARN Container 默认内存上限，如 8G-16G）。  
+  - **并行度**：`spark.executor.cores` 建议 4-5 核，避免过多核导致 HDFS 吞吐瓶颈。  
+- **参数示例**：  
+  ```bash  
+  --num-executors 100  
+  --executor-memory 8g  
+  --executor-cores 4  
+  --conf spark.sql.shuffle.partitions=2000  
+  ```  
+- **字节优化**：  
+  - 使用动态资源分配（`spark.dynamicAllocation.enabled=true`）应对负载波动。  
+  - 结合集群负载监控工具（如内部资源调度器）避免资源碎片。  
+
+---
+
+### **三、Spark 运维与故障排查**
+
+#### **6. 运维题**  
+**题目：如何监控 Spark 作业的运行状态？字节跳动常用的监控指标有哪些？**  
+**答案：**  
+- **监控手段**：  
+  - **Spark Web UI**：查看 Stage/Task 耗时、Shuffle 数据量、GC 时间。  
+  - **Metrics 系统**：通过 `spark.metrics.conf` 对接 Prometheus + Grafana。  
+  - **日志分析**：关注 Executor 的 WARN/ERROR 日志（如 OOM、FetchFailed）。  
+- **字节核心指标**：  
+  - **资源利用率**：CPU/内存/网络 IO 峰值。  
+  - **任务延迟**：`Scheduler Delay`、`Task Deserialization Time`。  
+  - **Shuffle 性能**：`Shuffle Read/Write Size`、`Spilled Data`。  
+
+---
+
+#### **7. 故障排查题**  
+**题目：Spark 作业长时间卡在某个 Stage，如何快速定位问题？**  
+**答案：**  
+- **定位步骤**：  
+  1. **Spark Web UI**：查看该 Stage 的 Task 耗时分布，确认是否数据倾斜。  
+  2. **日志分析**：检查是否有 `GC Overhead` 或 `OOM` 错误。  
+  3. **线程分析**：对 Executor 做 `jstack` 或使用 Spark 内置的 `Async Profiler`。  
+- **常见原因**：  
+  - 数据倾斜导致少数 Task 处理过大数据量。  
+  - 外部系统瓶颈（如 HDFS 慢节点或 MySQL 查询超时）。  
+  - 配置不合理（如 `spark.sql.shuffle.partitions` 过小）。  
+
+---
+
+### **四、Spark 生态与字节实践**
+
+#### **8. 综合题**  
+**题目：如何设计一个基于 Spark 的实时+离线混合数仓架构？结合字节跳动场景说明。**  
+**答案：**  
+1. **实时层**：  
+   - Kafka 接入实时数据，通过 Spark Structured Streaming 处理，写入 OLAP 引擎（如 ClickHouse）。  
+2. **离线层**：  
+   - 原始数据入湖（HDFS/字节自研表格式），通过 Spark SQL + Hive 进行 T+1 离线分析。  
+3. **混合查询**：  
+   - 使用 Delta Lake 或 Iceberg 实现 ACID 特性，支持实时增量更新与离线全量计算。  
+4. **字节优化**：  
+   - 基于字节自研的 Shuffle Service 提升大规模 Shuffle 稳定性。  
+   - 利用 Alluxio 加速 HDFS 数据读取（缓存热数据）。  
+
+---
+
+#### **9. 字节特色题**  
+**题目：在字节跳动超大规模集群中，如何优化 Spark 的 Shuffle 性能？**  
+**答案：**  
+- **优化方向**：  
+  1. **Shuffle 服务**：  
+     - 使用自研的 Remote Shuffle Service（RSS），解耦计算与 Shuffle 数据存储。  
+  2. **数据压缩**：  
+     - 启用 `spark.shuffle.compress=true`，使用 LZ4 或 ZSTD 算法。  
+  3. **网络优化**：  
+     - 调整 `spark.reducer.maxReqsInFlight` 提升并发请求能力。  
+  4. **本地化策略**：  
+     - 通过 `spark.locality.wait` 调整 Task 调度策略，优先本地化读取数据。  
+- **字节实践**：  
+  - 自研 Shuffle 方案（如 Cloud Shuffle Service）支持 TB 级 Shuffle 稳定性。  
+
