@@ -550,15 +550,29 @@ YARN 中的计算资源以 Container（容器） 为单位分配，资源过大�
 
 ---
 
-#### **9. 字节特色题**  
-**题目：在字节跳动超大规模集群中，如何优化 Spark 的 Shuffle 性能？**  
-**答案：**  
-- **优化方向**：  
-  1. **Shuffle 服务**：  
-     - 使用自研的 Remote Shuffle Service（RSS），解耦计算与 Shuffle 数据存储。  
-  2. **数据压缩**：  
-     - 启用 `spark.shuffle.compress=true`，使用 LZ4 或 ZSTD 算法。  
-  3. **网络优化**：  
+#### **9. spark数据倾斜**  
+当 Spark 执行分布式任务时，如果某个 Task 处理的数据量远大于其他 Task，导致整体执行时间被最慢的那一个 Task 拖住，这就叫数据倾斜。
+
+| 原因               | 举例                                       |
+| ---------------- | ---------------------------------------- |
+| **键值分布不均**       | 某个 `key` 特别热门，导致 join 或 groupBy 中落到一个分区  |
+| **小表广播失败**       | 小表超出广播阈值 → 走了 shuffle join → 倾斜          |
+| **倾斜 key 没提前处理** | join / groupBy 前没有做 hash salting 或分桶     |
+| **数据分区策略不合理**    | 手动 repartition 但没选择合适的 key 或 partition 数 |
+| **过滤/聚合失衡**      | 有的分区在前期 filter 掉了大部分数据，有的保留了很多           |
+
+如何定位数据倾斜？
+查看 Spark UI 中的 Stage → Task Duration 分布
+
+- 倾斜表现：
+
+某个 Task 执行时间远高于平均（常见于 join、groupBy 等）
+
+Task 总数和 partition 数不匹配
+
+shuffle read/write 不均衡
+
+不同 Stage 之间是串行执行的，同一个 Stage 的 Task 是并行执行的
      - 调整 `spark.reducer.maxReqsInFlight` 提升并发请求能力。  
   4. **本地化策略**：  
      - 通过 `spark.locality.wait` 调整 Task 调度策略，优先本地化读取数据。  
