@@ -31,7 +31,33 @@
      ```
   - 如果安装了 Python、Node.js、Java 等，镜像体积会变大。例如 python:3.9（≈100MB） vs. python:3.9-alpine（≈23MB）。
   - 镜像越小，下载速度越快，运行时占用的资源更少
-    
+
+| 指令           | 作用                           | 示例                                              |
+| ------------ | ---------------------------- | ----------------------------------------------- |
+| `FROM`       | 指定基础镜像（必须是第一条）               | `FROM ubuntu:20.04`                             |
+| `RUN`        | 执行命令构建镜像层（如 apt 安装）          | `RUN apt-get update && apt-get install -y curl` |
+| `CMD`        | 指定容器启动时默认执行的命令               | `CMD ["python3", "app.py"]`                     |
+| `ENTRYPOINT` | 和 `CMD` 类似，但更强制（更适合作为程序入口）   | `ENTRYPOINT ["nginx", "-g", "daemon off;"]`     |
+| `COPY`       | 从上下文目录复制文件到镜像                | `COPY ./app /app`                               |
+| `ADD`        | 类似 COPY，但支持自动解压和远程下载（不推荐）    | `ADD https://example.com/file.tar.gz /data/`    |
+| `WORKDIR`    | 设置后续指令的工作目录                  | `WORKDIR /app`                                  |
+| `EXPOSE`     | 声明容器运行时监听的端口（不会实际开放）         | `EXPOSE 80`                                     |
+| `ENV`        | 设置环境变量                       | `ENV ENVIRONMENT=prod`                          |
+| `ARG`        | 构建阶段传参用的变量                   | `ARG VERSION=1.0`                               |
+| `VOLUME`     | 声明挂载点，用于数据持久化                | `VOLUME /data`                                  |
+| `USER`       | 指定运行容器的用户                    | `USER appuser`                                  |
+| `LABEL`      | 添加元数据                        | `LABEL maintainer="you@example.com"`            |
+| `SHELL`      | 指定默认 shell（通常在 Windows 镜像中用） | `SHELL ["powershell", "-Command"]`              |
+
+| 功能     | 命令                                  |
+| ------ | ----------------------------------- |
+| 导出镜像   | `docker save -o name.tar imagename` |
+| 导入镜像   | `docker load -i name.tar`           |
+| 进入容器   | `docker exec -it <id> bash`         |
+| 查看 env | `docker exec <id> printenv`         |
+| 设置重启策略 | `docker run --restart=always ...`   |
+| 查看资源   | `docker stats [id]`                 |
+
   2. **选择轻量级基础镜像**：如 Alpine（5MB）替代 Ubuntu（70MB）
     
   3. **合并指令减少层数**：  
@@ -324,105 +350,132 @@ services:
 4. **安全与治理**：RBAC、网络策略、镜像安全扫描。  
 5. **架构设计**：高可用集群、自动扩缩容、跨云多集群管理。  
 
-**加分项**：  
-- 熟悉 Operator 模式（如 Spark Operator、Kafka Operator）。  
-- 有大规模集群（1000+节点）的运维经验。  
-- 掌握 Service Mesh（如 Istio）在大数据场景的应用。
+### k8s的集群组件有哪些 功能是什么
+- 控制平面组件（Control Plane）
+| 组件                          | 作用                                                       |
+| --------------------------- | -------------------------------------------------------- |
+| **kube-apiserver**          | K8s 的核心 API 入口，所有请求（kubectl/Controller）都要通过它。负责认证、授权、通信。 |
+| **etcd**                    | 保存集群所有状态（集群的数据库），是 K8s 的存储后端。支持高可用和快照。                   |
+| **kube-scheduler**          | 负责将新创建的 Pod 分配到合适的 Node 上，依据资源、亲和性等调度策略。                 |
+| **kube-controller-manager** | 管理各种控制器（如副本数控制、节点状态、Job 状态），自动维持系统期望状态。                  |
 
-1. 数据运维架构设计的核心要素
-1️⃣ 数据基础架构
-数据存储
+- 工作节点组件（Node Components）
+  | 组件                    | 作用                                                 |
+| --------------------- | -------------------------------------------------- |
+| **kubelet**           | 每个 Node 上的代理，负责与 apiserver 通信，确保 Pod 正常运行、容器按规范执行。 |
+| **kube-proxy**        | 管理 Pod 网络规则（iptables/ipvs），实现 Service 的负载均衡和网络转发。  |
+| **Container Runtime** | 负责启动容器，支持 Docker（旧）、containerd、CRI-O，需符合 CRI 接口规范。 |
 
-选择合适的存储方案（MySQL、PostgreSQL、MongoDB、HDFS、S3）
-设计冷热数据分层存储
-采用分布式存储架构（如 Hadoop、Ceph）
-计算框架
+### 初始化容器和sidecar的作用和区别
+- Init Container（初始化容器）：串行，Init 容器是在 主容器启动前 顺序执行的临时容器。它的生命周期结束后，才会启动主业务容器。
+Init 容器执行失败，Pod 会重启；只有全部 Init 容器成功后才会启动主容器。
 
-批处理（Hadoop、Spark）
-流处理（Flink、Kafka Streams）
-SQL 查询（Presto、Trino、ClickHouse）
-数据仓库
+- Sidecar 容器（边车容器）：并行，Sidecar 容器是和主容器并行运行在同一个 Pod 中的辅助容器，用于提供附加功能。Sidecar 容器和主容器 生命周期一致，但可以配置 restartPolicy 区分。
 
-OLAP（在线分析）：ClickHouse、Druid、Doris
-OLTP（事务处理）：MySQL、PostgreSQL
-云数仓（BigQuery、Snowflake）
-数据湖
+### Nginx Ingress Controller 
+Nginx Ingress Controller 是一个运行在 K8s 集群中的 Nginx 实例，用于根据 Ingress 资源规则，将外部请求转发到内部的 Service。它借助 Nginx 实现了 外部 HTTP/HTTPS 请求 → 集群内部服务 的路由、反向代理和控制。
+Ingress 资源：用户定义的路由规则（如 host/path → service）
 
-开源：Apache Iceberg、Delta Lake、Hudi
-云：AWS Lake Formation、Azure Data Lake
-2️⃣ 数据采集与集成
-日志 & 事件数据采集
+### kubectl相关指令
+- 命令行修改 Deployment 副本数
+kubectl scale deployment my-app --replicas=5
 
-日志采集（Filebeat、Fluentd、Logstash）
-事件数据（Kafka、Pulsar、RabbitMQ）
-ETL & 数据同步
+- 如何进行滚动更新
+kubectl set image deployment/my-app my-app-container=nginx:1.25
 
-实时数据同步（Canal、DataX、Debezium）
-批量数据同步（Sqoop、Airflow、Data Pipeline）
-数据治理
+- 如何回滚 Deployment（Rollback）
+查看历史记录：kubectl rollout history deployment <deployment-name>
+回滚上一个版本：kubectl rollout undo deployment <deployment-name>
+回滚到指定版本：kubectl rollout undo deployment <deployment-name> --to-revision=2
 
-数据清洗（Apache Nifi、Airbyte）
-数据质量监控（Great Expectations）
-3️⃣ 数据监控与告警
-数据库性能监控
+- 如何查看 Pod 的详细信息：kubectl describe pod <pod-name>
+查看日志：kubectl logs <pod-name>
 
-MySQL：Prometheus + Grafana + MySQL Exporter
-Redis：Redis Exporter + Prometheus
-MongoDB：MongoDB Exporter
-日志 & 追踪
+- 如何进入 Pod 进行交互：kubectl exec -it <pod-name> -- /bin/bash
 
-集中日志（ELK Stack、Loki）
-分布式追踪（Jaeger、Zipkin）
-APM 监控（Skywalking、New Relic）
-告警系统
+API Server 转发请求到对应节点的 kubelet
 
-Prometheus + AlertManager
-自定义 Webhook 到飞书、钉钉、企业微信
-4️⃣ 数据安全与合规
-权限管理
+kubelet 调用 container runtime（如 containerd）执行命令
 
-RBAC（角色权限管理）
-数据访问控制（Apache Ranger、AWS IAM）
-数据加密
+使用 SPDY/WebSocket 实现标准输入输出的传输
 
-传输加密（TLS、SSL）
-存储加密（KMS、HSM）
-数据审计
+输出结果通过 API Server 返回给 kubectl 客户端
 
-操作审计（数据库审计系统）
-日志存档（云存储归档）
-合规要求
+- 如何修改 Pod 时间（不影响其他 Pod）：Pod 单独设置时区（非系统时间）
+  env:
+  - name: TZ
+    value: Asia/Shanghai
 
-GDPR、CCPA（用户数据保护）
-SOX（金融合规）
-HIPAA（医疗数据合规）
-5️⃣ 运维自动化 & DevOps
-数据库 CI/CD
-CI/CD 主要包含 四个阶段：
+- pod状态crash如何排查
+ 1. 查看 Pod 状态
+kubectl get pods
 
-CI（持续集成） → 代码合并 & 自动构建
-CD（持续交付） → 自动化测试 & 人工审核
-CD（持续部署） → 自动部署 & 线上发布
-监控 & 回滚 → 观察系统状态，必要时回滚
+ 2. 查看事件
+kubectl describe pod <pod-name>
 
-代码管理（Liquibase、Flyway）
-流水线自动化（Jenkins、GitHub Actions）
-基础设施自动化
+ 3. 查看容器日志（可指定容器名）
+kubectl logs <pod-name> [-c container-name]
 
-配置管理（Ansible、Terraform）
-容器化（Docker + Kubernetes）
-数据库运维自动化（DBA 工具，如 DMS）
-AI 运维（AIOps）
+ 4. 查看是否是 OOM（Outkubectl get pod <pod-name> -o jsonpath='{.status.qosClass}'
+ Of Memory）
+kubectl get pod <pod> -o jsonpath='{.status.containerStatuses[*].lastState.terminated.reason}'
 
-智能 SQL 优化（AI-based Query Tuning）
-异常检测（Machine Learning for Anomaly Detection）
-6️⃣ 数据可视化
-报表 & BI
+- Pod 创建过程
+客户端提交 YAML，API Server 校验并写入 etcd
 
-开源 BI：Superset、Metabase
-企业 BI：Tableau、Power BI
-实时仪表盘
+controller-manager 创建 Pod 控制器资源（如 ReplicaSet）
 
-监控（Grafana、Kibana）
-业务数据看板（DataV、ECharts）
+scheduler 调度 Pod → 选定 Node → 更新 Pod 的 nodeName
+
+kubelet 检测新 Pod → 拉取镜像 → 创建容器（containerd）
+
+设置网络、挂载 Volume → 运行探针 → Pod Ready
+
+- QoS怎么实现的
+Kubernetes 按照 Pod 的 CPU/内存限制和请求 为每个 Pod 分配 QoS 等级，影响调度和驱逐优先级。
+| 等级             | 条件                             | 示例          |
+| -------------- | ------------------------------ | ----------- |
+| **Guaranteed** | Pod 所有容器的 `requests == limits` | 最不容易被驱逐     |
+| **Burstable**  | 至少一个容器 `requests ≠ limits`     | 有限保障，性能可突发  |
+| **BestEffort** | 所有容器无 `requests` 和 `limits`    | 最容易被驱逐，低优先级 |
+
+kubectl get pod <pod-name> -o jsonpath='{.status.qosClass}'
+
+- kube-proxy 的工作原理
+  kube-proxy 是运行在每个节点上的组件，负责实现 Service → Pod 的网络转发和负载均衡。
+  | 模式               | 描述                               |
+| ---------------- | -------------------------------- |
+| **iptables（默认）** | 使用 iptables 规则处理 ClusterIP 服务的转发 |
+| **ipvs（推荐）**     | 内核级负载均衡，更高性能                     |
+监听 API Server 中 Service 和 Endpoint 的变化
+
+将这些规则转换为本地 iptables/ipvs 转发表
+
+当访问 ClusterIP:Port 时 → 自动转发到后端 Pod IP
+
+例如访问 my-svc:80，可能会被转发到 10.244.1.23:8080
+
+- 网络方面：Calico, Flannel, Cilium比较多，优先选云厂商原生 CNI
+
+### Prometheus的组件有哪些
+
+| 组件名称                  | 作用                       | 是否必须                      |
+| --------------------- | ------------------------ | ------------------------- |
+| **Prometheus Server** | 指标数据采集、存储、查询引擎           | ✅ 是                       |
+| **Pushgateway**       | 支持短命任务的指标推送（如 batch job） | ⛔ 可选                      |
+| **Alertmanager**      | 报警规则管理与通知（邮件、Slack、微信等）  | ⛔ 推荐                      |
+| **Exporters**         | 负责暴露系统、服务等指标             | ✅ 是（实际采集必需）               |
+| **PromQL**            | 查询语言，用于分析和可视化            | ✅ 是（内嵌）                   |
+
+| 类型            | 特点                   | 常见用途          | 示例                                               |
+| ------------- | -------------------- | ------------- | ------------------------------------------------ |
+| **Counter**   | 单调递增（只能增加或重置）        | 统计总次数、总量      | 请求数、错误数、重启次数                                     |
+| **Gauge**     | 可增可减                 | 当前值监控         | 温度、内存使用量、并发连接数                                   |
+| **Histogram** | 对样本进行区间分桶，适合观察分布     | 请求耗时、对象大小分布   | `http_request_duration_seconds_bucket`           |
+| **Summary**   | 类似 Histogram，自带分位数计算 | 请求延迟的 p99、p95 | `http_request_duration_seconds{quantile="0.99"}` |
+
+| **Web UI / HTTP API** | 查询、图表和配置界面               | ✅ 是（Prometheus Server 内置） |
+
+### nginx日志访问
+前十访问最多的 IP 地址：awk '{print $1}' /var/log/nginx/access.log | sort | uniq -c | sort -nr | head -10
 
