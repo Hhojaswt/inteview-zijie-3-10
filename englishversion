@@ -1,0 +1,69 @@
+1) Background & Pain Points (expanded)
+
+Business & topology. The customer is an Internet company with an AI-training pillar on a hybrid Azure architecture: latency-sensitive online services (web/API, checkout, recommendation) run across Azure VNets and Application Gateway/Front Door; large-scale model training and feature pipelines also run in Azure (GPU pools, AKS/VMSS), while several core/legacy systems remain on-prem behind ExpressRoute/VPN (DBs, ERP, internal services). Private endpoints and NAT/Proxy are used in parts of the network, and environments span multiple regions to serve a widely distributed user base.
+
+Traffic & data patterns. Front-end traffic and ingestion are burst-heavy (marketing events/holidays cause step-function increases). Training jobs arrive in waves (nightly batches, model refresh windows). Data movement is continuous (object storage, feature store, message queues), and low tail-latency for user journeys (search, cart, checkout, content feed) is a hard requirement.
+
+SLO context. Typical SLOs: checkout/critical APIs p95 < 200 ms, availability ≥ 99.9%, cross-region user experience stable RTT, training queue wait time kept short during business windows. Breaching these SLOs directly impacts conversion, ad revenue, and model freshness.
+
+Why hybrid here (constraints).
+
+Data gravity & compliance—certain datasets/processes must remain on-prem;
+
+Cost efficiency—GPU elasticity on cloud, but steady state or licensed systems on-prem;
+
+Migration reality—not everything can be refactored simultaneously (heterogeneous stacks).
+
+Pain points we observed (root-cause-oriented):
+
+Forecasting blind spots. Capacity planning mixes human judgement with tool snapshots; no unified, seasonality-aware forecast for CPU/GPU/bandwidth/SNAT/IP-IOPS → chronic over- or under-provisioning.
+
+Priority inversion between training and online. GPU or I/O contention: training steals resources from user-facing paths during peaks; no hard priority/quotas or preemption strategy.
+
+Fragmented observability. On-prem and cloud nodes use different agents and taxonomies; metrics are apples-to-oranges (different names/intervals), traces aren’t stitched end-to-end, change events aren’t correlated → slow MTTR and alert fatigue.
+
+Elasticity lag. VMSS/AKS scale-out starts late (manual thresholds), and cold-starts are slow (large image pulls, dependency warm-ups). By the time replicas come up, p95 and error rate have already spiked.
+
+Network hot spots. Under bursts we see NAT Gateway SNAT exhaustion (≈64k ports per public IP, linear scale with more IPs) and NIC throughput ceilings at the VM SKU level; cross-region RTT jitter and probe misconfigurations (AGW/FD) amplify tail latency.
+
+Storage/IO contention. IO-heavy services hit disk latency/queue depth cliffs during peaks; hot partitions/keys in DB/cache create head-of-line blocking.
+
+GPU efficiency gaps. Mixed job sizes and long-running processes create VRAM fragmentation; Spot evictions lack checkpointing, so work is lost; overall GPU utilization is below target.
+
+2) Data Collection & Recommended Signals (Azure-native)
+
+Onboard & normalize: Azure Arc for on-prem/other clouds; AMA + DCR to standardize collection. Managed Prometheus + Azure Managed Grafana for high-frequency metrics; Log Analytics for logs/queries; Application Insights for APM/traces; Network Watcher + Connection Monitor for end-to-end RTT/loss.
+
+Key signals to standardize (spoken highlights):
+
+Compute/IO: CPU >70% with Processor Queue ≥ 2×vCPU (10–15 m), Avg. Disk sec/Read > 15 ms / Write > 10 ms, Disk queue depth, image pull time.
+
+Network: RTT p95 > 120 ms or +30% vs 7-day baseline; SNAT Utilization > 80% or Packets Dropped > 0; NIC throughput ≥80% of VM SKU cap; TCP retransmits.
+
+App/APM: p95/p99 latency, error rate, dependency failures, queue backlog, slow SQL.
+
+Containers: Pending pods, OOM/restarts, HPA/CA trigger counts & delay.
+
+GPU: utilization, VRAM utilization/fragmentation, Spot eviction events.
+
+Change/health: Change Analysis events, Resource/Service Health.
+
+3) Follow-up Solution (Alert → Action)
+
+Forecast + pre-scale: Use 6–12-month history + holiday features (ARIMA/Prophet/LSTM) to project CPU/GPU/bandwidth/SNAT; pre-scale VMSS/AKS in T-30/15/5 stages; warm images/connections/probes/routes to cut cold-start pain.
+
+Compute/IO: VMSS autoscale driven by CPU + p95 + queue; split IO hot spots or raise disk tier (higher IOPS/throughput); custom images and init tasks to reduce start-up variance.
+
+Containers/GPU: HPA on p95/queues; CA node pools (CPU/GPU/general) with taints/tolerations/NodeAffinity; KEDA for async; move training to Spot + frequent checkpoints; use MIG/MPS where it improves GPU packing.
+
+Network/edge: Grow NAT capacity (add public IPs or split subnets), enable client connection pooling/keep-alives; Front Door + AGW autoscale, geo-routing, rate limit; auto failover to healthy backends on RTT anomalies.
+
+DR/Cost: ASR + Backup (app-consistent, quarterly drills); cost mix = Reservations (baseline) + On-Demand (bursts) + Spot (fault-tolerant); reduce log cost with DCR sampling and hot/cold tiers.
+
+4) Outcomes
+
+Stability: App p95 280 ms → 150–180 ms during events; cross-region RTT p95 −20–35%; SNAT drops → 0.
+
+Elasticity speed: Scale completion ~15 min → 3–5 min; far fewer cold-start induced errors.
+
+Training & cost: GPU utilization +10–25%; Spot resilience improves via checkpoints; total cost −15–30% with the right reservations/on-demand/Spot blend.
