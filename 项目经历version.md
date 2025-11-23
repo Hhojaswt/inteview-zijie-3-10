@@ -1,130 +1,149 @@
-项目实施方案
-## **1. 数据采集与可视化（Azure Monitor)**
-**数据接入与混合环境监控**
-- 日志与指标收集：
-利用 Azure Monitor Agent（AMA）自动采集 Windows 和 Linux 服务器的系统日志、事件日志及关键性能指标（如 CPU、内存、磁盘 I/O 等）。
-同时监控应用程序日志（例如 IIS、Nginx、Tomcat），确保应用层错误和异常能第一时间捕获，并与系统指标进行关联分析。
-收集数据库查询性能数据（借助 SQL Query Store）帮助识别慢查询和性能瓶颈。
-针对本地服务器，借助 Azure Arc 建立混合云环境中的统一监控体系，实现跨云和本地资源的数据接入。
+** 计算
+✅ 案例一：VM 层面网络延迟导致关键服务响应劣化（纯 VM 网络类 TS 案例）
+- S - Situation（情境）
+客户是一家全球性银行，其核心风险计算引擎运行在 Azure 上的一组高性能 Linux 虚拟机（VM） 上，该服务通过私有 VNet 为多个前端应用提供低延迟 API 接口（SLA 要求 P99 < 50ms）。
 
-安装AMA过程中报错：1. 客户使用的版本是否兼容，例如客户在使用2007则告知客户可以升级version，如果只是希望收取数据还可以使用API的方式进行部署2. 客户的网路环境有endpoint是否开通，先检查防火墙，接着用ping和nslookup（如果是linux就用curl）3. 检查客户的permission有没有开通，是否有system identity 4. 是否有足够的disk space：C:\Packages\Plugins\Microsoft.Azure.Monitor.AzureMonitorWindowsAgent	500 MB 5.配置private link,创建 AMPLS 时，DNS 区域会将 Azure Monitor 终结点映射到专用 IP，以通过专用链接发送流量。 Azure Monitor 同时使用特定于资源的终结点和共享的全局/区域终结点来访问 AMPLS 中的工作区和组件。
-安装AMA方法：1. 用DCR 2.用policy 3. 用PS
+某交易日早盘（市场波动剧烈），多个前端系统报告 风险限额更新延迟，但：
 
-过程中syslog没收上来（linux）：先检查是否有磁盘满了的情况，From the case description, I noticed that you might need some help from Microsoft support. From the former message I understand that you are occurring an error message from the OMS extension.
+Azure Monitor 仪表盘显示 P99 延迟稳定在 45ms
+无任何告警触发
+SRE 团队初步判断“网络或客户端问题”
 
-Also you have encountered an error from the VM.
- 
- 
-Cause:
-This issue can occur if /etc/opt/microsoft/omsagent contains broken symlinks to a non-existent workspace directory.
-Please kindly check whether the symlinks to the certs and conf directories are valid using the following command:
-# ls -la /etc/opt/microsoft/omsagent
-If the results appeared as follows, please kindly check the solution below.
- 
-Solution:
-Please manually remove the broken symlinks as follows and reinstall the extension then the extension will be good to transfer syslog.
-# rm /etc/opt/microsoft/omsagent/certs
-# rm /etc/opt/microsoft/omsagent/conf
- The error also occurs when there is hardening on the machine, you can check the status for hardening by running the command, "sestatus"
-3.	As we discussed in the meeting, Issue is resolved by copying the contents /etc/rsyslog.d/95-omsagent.conf from a working server to the non-working server. 
-               In the non-working server, the contents were empty. Then we ran the troubleshooter and found there is openssl error and restarted the rsyslog. Syslog would be seen from the workspace.
-4.	Then we look up the issue that 25226 is not working on one server, here is a document that you can kindly refer to 25226 troubleshooting: https://learn.microsoft.com/en-us/azure/sentinel/troubleshooting-cef-syslog?tabs=cef#syslog-ng-daemon. 
- 
-We compared the files between two servers and noticed that there is security_events.conf file missing under omsagent.d. After that we added the certain file content under the path and 25226 could be heard again. We reach an agreement to monitor the issue for somedays.
-检查发现客户proxy有ip未开通并且dns有域名没加进去：检查log发现ODS有error报错fail to connect，先进行nslookup检查具体endpoint的域名解析以及有没有上网功能，接着检查performance是否有报错，最后查看task manager是否有程序正常运行，
-安装完成后帮助客户收集heartbeat，perf等数据上云进行检测，收集机器的metrics,VM insight到grafana，custom metrics先拿取token用REST API request,此请求使用客户端 ID 和客户端密码对请求进行身份验证。将以下 JSON 存储到本地计算机上名为 custommetric.json 的文件中。在Azure AD中创建服务主体并分配权限，在grafana中安装Azure monitor插件，创建dashboard后可以编写查询。
+🔍 深度排查：发现“看不见的延迟”
+步骤 1：绕过仪表盘，直接分析原始时间戳
+SRE 团队执行以下 KQL 查询，检查数据是否“准时到达”：
+关键发现：
 
-- 数据存储与处理：
-将所有收集到的数据统一存储在 Log Analytics Workspace 中，通过结构化存储为后续分析、报表生成提供数据基础。
-借助高性能数据仓库技术，确保数据的实时写入与高效查询，支持大规模数据集下的复杂查询需求。
+TimeGenerated (UTC)	ingestion_time() (UTC)	IngestionDelaySec	RiskCalcProcessingLatencyMs
+2025-11-23T08:12:03Z	2025-11-23T08:18:47Z	404 秒	182 ms
+2025-11-23T08:12:15Z	2025-11-23T08:18:49Z	394	176 ms
+💥 真相：风险引擎在 08:12 已严重超时（182ms >> 50ms SLA），但数据直到 08:18 才进入 workspace！
 
-- 服务状态：
-Windows：使用“服务”管理器或 PowerShell 检查 AzureMonitorAgent 服务是否正在运行。
-Linux：使用 systemctl status azuremonitoragent 命令确认服务状态，并查看是否存在重启或失败记录。
+步骤 2：根因定位 —— 监控代理资源争抢
+登录问题 VM，检查系统状态：
 
-- 诊断日志：
-Windows：查看事件查看器中 AMA 相关日志（通常在“应用程序与服务日志”下），注意错误或警告信息。
-Linux：查看 /var/opt/microsoft/azuremonitoragent/log/ 目录下的日志文件，特别关注 agent 初始化、数据传输及错误信息。
+CPU 使用率持续 98%+（由突发市场数据流引发）
+top 显示 azuremonitoragent 进程处于 低优先级睡眠状态
+AMA 日志 (/var/log/azuremonitoragent/ama.log) 出现：
 
-- 配置文件验证：
-检查 AMA 的配置文件，确认采集规则、数据源、Log Analytics 工作区 ID 和密钥等信息是否正确。
-Windows：配置文件路径可能位于安装目录下，可对比官方示例配置。
-Linux：检查 /etc/opt/microsoft/azuremonitoragent/config/ 下的配置文件格式是否正确，并验证 JSON 格式的有效性。
+[WARN] Buffer full (512MB). Dropping oldest telemetry.
+[ERROR] HTTP POST to ods.opinsights.azure.com failed: context deadline exceeded
 
-- 网络抓包与监控：
-利用 Network Watcher 或本地抓包工具（如 Wireshark、tcpdump）监控 AMA 与 Azure 后端的通信，确认是否存在连接超时或数据包丢失情况。
-检查 TLS 握手和认证过程，确保加密通信未被中间设备拦截或篡改。
-- 与 Log Analytics 工作区连接测试：
-通过官方提供的诊断工具或使用 Azure Portal 中的“诊断设置”，检查数据是否按预期从 AMA 上传到工作区。
+同时，ss -tuln | grep :443 显示大量连接处于 SYN-SENT，表明 内核网络栈因 CPU 无法及时处理出站连接。
 
-**数据分析与可视化**
-- KQL 查询与报表生成：
-编写细粒度的 Kusto Query Language（KQL） 查询规则，对业务健康指标、资源利用率及异常日志进行深度筛选和聚合。
-结合时间序列分析、阈值报警、趋势预测等方法，及时识别系统性能波动和潜在风险。
-- 自定义监控面板：
-利用 Azure Monitor Workbooks 构建多维度监控面板，从整体系统健康状况到各项子系统指标（例如网络延迟、服务器响应时间、负载均衡器吞吐量）均有直观展示。
-定制化视图支持运营团队快速定位问题区域，并对历史数据进行回溯分析，发现潜在的性能瓶颈。
+🔍 根本原因：
 
-**网络故障排查与性能优化**
-- 网络流量与连通性监控：
-利用 NSG Flow Logs 和 Azure Monitor 捕捉并分析跨虚拟网络（VNet）的流量数据，确保数据包流动符合预期，及时发现异常访问和端口封锁情况。
-结合 Network Watcher 进行实时网络流量捕获（Packet Capture），记录关键数据包以便后续进行流量重放和协议分析，定位网络层故障。
-- 跨区域与混合网络环境排查：
-使用 Connection Monitor 定期检测 ExpressRoute 链路、VPN 网关以及 VNet Peering 连接的连通性，及时发现并定位丢包、延时或中断问题。
-通过对比监控数据，定位是否是由于网络设备（如路由器、交换机）故障或配置错误引起的问题，进而调整网络路由或安全策略。
-- 边缘服务与负载均衡监控：
-对应用层负载均衡器（ALB/NLB）、CDN 流量进行实时监控，分析跨站点访问延迟和流量分布情况，确保服务的高可用性。
-对 VPN 网关的性能指标（如连接数、数据吞吐量）进行监测，及时预警因流量突增或配置瓶颈引起的网络拥堵问题。
+在高负载下，风险计算进程占满 CPU，导致 Azure Monitor Agent 无法及时调度，日志积压在本地缓冲区；
 
-**电脑性能监控与优化**
-- 主机级性能数据采集：
-配置 AMA 收集各台服务器的硬件性能指标，包括 CPU 使用率、内存消耗、磁盘 I/O 及网络接口流量。
-结合操作系统内置性能监控工具（如 Windows Performance Monitor、Linux 的 top/iostat 等）获取实时数据，并与 Azure Monitor 指标数据进行对比验证。
-- 性能瓶颈与资源利用率分析：
-利用 KQL 查询对高 CPU 占用、内存泄漏、磁盘过载等异常行为进行检测，及时生成警报和健康报表。
-分析各类应用程序的性能数据，通过监控关键性能指标（如响应时间、错误率）来评估系统负载状况，进而优化系统资源配置和扩容策略。
-- 系统健康与预警机制：
-定制化仪表盘整合主机、应用及网络多层数据，实时展现各系统组件的健康状态。
-配置自动化预警，通过 Azure Monitor 的条件触发器对异常数据进行及时通知，辅助技术团队快速响应并实施故障修复。
+当 CPU 短暂回落时，AMA 批量上传历史数据，造成 TimeGenerated 与 ingestion_time() 严重脱节；
 
-**整体优化与持续改进**
-- 数据关联与跨域分析：
-将网络监控数据与主机性能、应用日志进行多维度关联分析，形成全面的系统健康视图。
-利用机器学习算法对历史数据进行预测，识别潜在故障风险，提前规划维护和扩容计划。
-- 持续监控与反馈机制：
-定期回顾监控策略与指标设置，通过对比分析不断优化查询规则与报警阈值，确保系统监控的准确性和及时性。
-与业务部门及网络运营团队密切协作，共同制定优化方案，实现从问题检测到解决方案实施的闭环管理。
+结果：监控系统“回放”过去的问题，而非实时反映当前状态。
 
+🛠️ 解决方案与优化
+资源隔离
+为 azuremonitoragent 设置 CPU 亲和性与 cgroup 限制，预留 2 vCPU 专用资源：
 
-## **2. 自动化运维与故障恢复（Azure Automation）**
-自动化任务编排
+systemd-run --scope --slice=monitoring.slice --property=CPUQuota=200% /opt/microsoft/azuremonitoragent/bin/ama
 
-定时任务管理：使用 Azure Automation Runbooks 编写 PowerShell/Python 脚本，执行 定时磁盘清理、服务重启、资源扩缩容。
-Hybrid Worker 集成：实现本地服务器（On-Premises）自动化运维，跨云环境执行 软件部署、补丁管理、日志归档。
-自动日志清理：对于 高并发应用服务器，通过 Runbook 结合 Azure Blob Storage 进行 日志归档与清理，防止存储超限。
-智能故障处理
+调整 DCR 缓冲策略
 
-结合 Azure Monitor Metrics 设定 异常触发阈值，当 CPU 超过 80% 持续 5 分钟 或 内存使用率超过 90% 时，自动触发 Runbook 扩展 VM 规模或回收内存。
-针对 Azure Kubernetes Service（AKS）集群，自动检测 Pod 崩溃 并重启，减少业务影响。
-## *3. 实时告警与异常处理（Azure Alerts）*
-告警设定与通知
+增大缓冲区并启用压缩（通过 ARM 模板）：
 
-监控 Azure VM 运行状态、数据库响应时间、API 请求失败率，设置 Metrics-based Alerts，提前发现潜在问题。
-结合 Action Groups，配置 多渠道告警通知（邮件、短信、Teams、ServiceNow），确保关键事件即时响应。
-自动化事件响应
+"dataSources": {
+  "extensions": [{
+    "name": "RiskMetrics",
+    "streams": ["Microsoft-Perf"],
+    "settings": {
+      "bufferSizeMB": 1024,
+      "maxSendBatchSize": 1048576
+    }
+  }]
+}
+新增“可观测性健康度”监控
 
-触发 Logic Apps 进行自动化处理，如 磁盘空间不足时，自动扩容存储；网络流量突增时，调整带宽。
-针对 应用崩溃（500 错误过多），自动重启 App Service 或 调整负载均衡策略，提高业务可用性。
-## *项目成果与业务价值*
-✅ 提升故障检测与响应速度：
+创建 KQL 告警规则，监控摄入延迟：
+kql
+编辑
+RiskEngineMetrics_CL
+| where TimeGenerated > ago(10m)
+| extend delay_sec = datetime_diff('second', ingestion_time(), TimeGenerated)
+| summarize max_delay = max(delay_sec) by bin(TimeGenerated, 1m)
+| where max_delay > 60
+→ 触发 “Monitoring Data Stale” 告警，优先级高于业务指标。
+应用层增强
+在风险引擎内部实现 本地延迟直方图 + Prometheus 指标，通过 Azure Managed Service for Prometheus 独立上报，避免依赖 AMA 单一通道。
+✅ 成果
+摄入延迟从 >400 秒降至 <8 秒
+下一次市场波动期间，P99 超限告警在 15 秒内触发
 
-通过 Azure Monitor + Azure Alerts，将 系统故障平均发现时间（MTTD）从 15 分钟降低至 3 分钟，有效减少业务中断。
-结合 KQL 数据分析，优化 数据库慢查询，提高查询性能 20%。
-✅ 降低运维成本，提升系统稳定性：
+✅ 案例二：AKS 集群因健康检查失败导致 Pod 频繁重启（纯 K8S 层面 TS 案例）
+- S - Situation（情境）
+客户在 Azure 上运行一个微服务架构的交易系统，部署在 AKS（Azure Kubernetes Service）集群 中。
 
-通过 Azure Automation Runbooks 实现 自动化任务处理，减少 40% 的人工干预。
-采用 自动日志归档与清理策略，优化存储使用率，节约 30% 存储成本。
-✅ 增强网络稳定性与安全性：
+某日凌晨，多个关键服务的 Pod 开始出现周期性崩溃（CrashLoopBackOff），自动重启频率高达每 5 分钟一次，影响交易处理能力。
 
-通过 Network Watcher 提升 Azure 资源间的网络连通性，减少 60% 连接超时问题。
-采用 Private Link 及 VNet Peering，提升数据传输稳定性，同时降低网络攻击风险。
+客户已检查应用日志、资源配额、镜像版本，均无异常，请求高级技术支持介入。
+
+- T - Task（任务）
+定位 Pod 频繁重启的根本原因；
+判断是否为 AKS 平台缺陷或配置问题；
+快速恢复服务，并防止复发。
+
+- A - Action（行动）
+检查 Pod 与容器状态：
+kubectl describe pod 显示：Liveness probe failed: HTTP probe failed with statuscode 503；
+但 kubectl logs 显示应用已成功启动，且能处理部分请求；
+排除应用未启动或端口冲突问题。
+
+进入节点层排查：
+SSH 登录对应 AKS 节点（Worker Node）；
+
+使用 journalctl -u kubelet 查看 kubelet 日志，发现：
+Failed to probe http://<pod-ip>:8080/health: context deadline exceeded
+
+但手动 curl http://<pod-ip>:8080/health 返回 200，健康检查正常。
+
+抓包分析健康检查行为：
+使用 tcpdump 监听健康检查端口：
+tcpdump -i any -n port 8080 and host <pod-ip>
+
+发现 kubelet 发起健康检查时，TCP SYN 包发出后长时间未收到 ACK；
+
+进一步检查节点内核日志：
+
+dmesg | grep "syn backlog"
+
+输出：
+
+TCP: request_sock_TCP: Possible SYN flooding on port 8080. Sending cookies.
+
+根因定位：
+该节点上运行了大量短连接客户端（来自外部系统），导致 TCP 半连接队列（syn backlog）溢出；
+如果 TIME_WAIT 数量远高于 ESTABLISHED → 短连接为主；
+如果 ESTABLISHED 稳定且数量合理 → 长连接为主。
+
+当 kubelet 发起健康检查时，TCP 握手无法完成，probe 超时失败；
+Kubelet 标记 Pod 不健康 → 重启 → 新 Pod 启动后再次陷入相同循环。
+
+解决方案：
+临时缓解：
+调大内核参数：
+net.core.somaxconn = 65535
+
+net.ipv4.tcp_max_syn_backlog = 65535
+
+net.ipv4.tcp_abort_on_overflow = 1
+
+通过 DaemonSet 在所有节点上应用；
+
+延长 Liveness Probe 的 timeoutSeconds 从 1s 到 3s。
+
+长期建议：
+客户优化外部调用方连接行为（启用连接池）；
+建议使用 readiness/liveness 分离探针，避免健康检查受业务流量干扰；
+推动客户启用 AKS 的 Network Policies 限制非必要流量。
+R - Result（结果）
+所有 Pod 在参数调整后 10 分钟内恢复正常，不再重启；
+MTTR 缩短至 4 小时以内；
+客户架构团队采纳建议，后续在生产集群中实施了“健康检查隔离”策略；
+该案例成为 Azure 内部培训材料中“Kubelet Probe 与 TCP 栈交互的经典案例”。
