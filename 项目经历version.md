@@ -141,6 +141,7 @@ net.ipv4.tcp_abort_on_overflow = 1
 长期建议：
 客户优化外部调用方连接行为（启用连接池）；
 建议使用 readiness/liveness 分离探针，避免健康检查受业务流量干扰；
+
 推动客户启用 AKS 的 Network Policies 限制非必要流量。
 R - Result（结果）
 所有 Pod 在参数调整后 10 分钟内恢复正常，不再重启；
