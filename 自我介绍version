@@ -1,6 +1,6 @@
 各位面试官老师，下午好。十分荣幸能参加这次面试，同时把我的基本信息展现给大家，下面我将进行简单进行自我介绍。  我叫叶盛洁。毕业于上海工程技术大学，数据科学与大数据专业。
 
-我的工作经历主要有两家公司，第一份工作是在普华永道信息技术公司，我担任软件测试实习生
+我的工作经历主要有三家公司，第一份工作是在普华永道信息技术公司，我担任软件测试实习生
 需求分析与测试设计：参与需求评审，分析产品需求⽂档（PRD）。根据需求编写测试计划、测试⽅案及详细的测试⽤例，涵盖功能测试、数据库测试及安全测试等。 
 · Portal端测试：负责Portal系统的功能测试，包含⽤⼾登录、权限管理、数据展⽰、交互逻辑等。进⾏前端兼容性测试 
 熟悉软件架构，常⻅协议。 
@@ -15,9 +15,13 @@
 · 客⼾沟通与技术赋能：通过邮件、电话、远程会议与全球客⼾沟通，协助客⼾优化云端架构，提⾼资源利⽤率并降低成本。 
 · 跨团队协作（PG / CSS / 现场团队）：针对复杂或产品级缺陷，在处理案例时跨组⾼效合作。收集客户反馈，分析常见问题，向产品团队提供优化建议，推动 Azure 产品的持续改进，提高产品稳定性和用户体验。
 
-同时在校期间还做过一个VR的项目，我主要担任unity的代码编写，使用C#语言，与队员进行合作，获得虚拟现实技术及应用创新大赛 高校创新组 优秀创新奖；华为云大赛 三等奖；2020第四届国际虚拟仿真与智能交互创新作品大赛 大学组最佳应用奖
-我所掌握的技能包括数据库管理，数据挖掘，数据分析，数据爬虫，深度学习，目标检测算法等等，掌握的语言包括C++，java，python，sql汇编语言，C#等等
-这些经历使得我对测试流程，数据管理有了一定的熟悉，了解云服务各职位之间需要的进行的工作，方便对接，并且具有的文档撰写能力和良好的沟通能力。如果有幸加入了公司我也有能力和信心承担工作内容。谢谢!
+作为汇丰环球科技核心成员，负责大数据云平台产品的全生命周期管理，致力于构建安全、可扩展且合规的云原生数据基础设施。
+产品定义与策略： 深入对接全球各业务部门，收集并分析大数据处理、存储及分析场景下的痛点需求，定义云平台Ro
+端到端迁移管理： 负责传统本地部署大数据集群向私有云的架构迁移规划。通过优先级排期，支持核心业务系统的平滑上云。
+用户沟通与生态建设： 搭建研发、架构、运维与业务端之间的沟通桥梁，组织定期需求评审会，将复杂的业务语言转化成清晰的技术规格说明书。
+技术支持与赋能： 建立标准化的技术支持流程与文档体系，解决租户在数据接入、资源调度及合规性审查中的技术难题，提升了 20% 以上的平台开发效能。
+合规与风控： 严格遵循金融行业监管标准，确保云产品在高度合规的前提下实现高性能输出。
+这些经历使得我对云计算相关技术有了较为全面的掌握，了解云服务各职位之间需要的进行的工作，方便对接，并且具有的文档撰写能力和良好的沟通能力。如果有幸加入了公司我也有能力和信心承担工作内容。谢谢!
 
 
 Hi, first of all, thank you XXX and XXX so much for taking the time to interview me. I'm Jenny, and I graduated from Shanghai University of Engineering Science with a major in Data Science and Big Data Technology. 
@@ -34,5 +38,12 @@ Assisting customers in deploying, configuring, and optimizing Azure resources
 In my role, I provide technical support and help troubleshoot issues for enterprise and premium customers using Azure to manage their data monitor and data analyse needs. 
 My goal is to ensure their environments run smoothly by addressing any issues and helping them optimize how they use by monitoring their related data ingestion and put forward these to metrics and insights,
 
-Also, working with customers in this role has really helped me improve my communication skills. Beyond just solving technical problems, I’ve become really good at understanding the customer’s core needs and approaching solutions from their perspective. 
- I am confident in my ability to contribute and fulfill my responsibilities effectively.
+Product Definition & Strategy: Partnered with global business units to analyze pain points in big data processing, storage, and analytics. Defined the product roadmap and strategy to build a secure, scalable, and compliant cloud-native data infrastructure.
+End-to-End Migration Management: Led the architectural planning for migrating traditional on-premise big data clusters to private cloud environments. Managed prioritization and scheduling to ensure the seamless migration of core business systems.
+Communication & Ecosystem Building: Served as the primary bridge between R&D, Architecture, Ops, and business stakeholders. Organized regular requirement review sessions and successfully translated complex business requirements into clear technical specification documents.
+Technical Support & Enablement: Established standardized support workflows and documentation systems. Resolved tenant issues regarding data ingestion, resource scheduling, and compliance checks, resulting in a 20%+ increase in platform development efficiency.
+Compliance & Risk Control: Strictly adhered to financial industry regulatory standards, ensuring high-performance delivery while maintaining full compliance across all cloud products.
+
+These experiences have equipped me with a comprehensive understanding of cloud technologies and the specific responsibilities of various cloud service roles, 
+facilitating seamless cross-functional collaboration. Combined with my strong documentation and communication skills, 
+I am confident in my ability to deliver immediate value to your team. I look forward to the opportunity to contribute to your company
